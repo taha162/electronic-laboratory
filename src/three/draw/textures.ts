@@ -32,13 +32,19 @@ export function canvas(w: number, h: number) {
 export function toTexture(c: HTMLCanvasElement, opts: { repeat?: [number, number]; srgb?: boolean; aniso?: number } = {}) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = opts.srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
-  t.anisotropy = opts.aniso ?? 8;
+  t.anisotropy = opts.aniso ?? 16; // clamped to the GPU's maximum by three.js
   if (opts.repeat) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(opts.repeat[0], opts.repeat[1]);
   }
   t.needsUpdate = true;
   return t;
+}
+
+/** resolution of the printed panels: sharp close-ups on desktops, lighter on phones */
+function printPxPerMm() {
+  const coarse = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
+  return coarse ? 4.5 : 6;
 }
 
 function cached(key: string, make: () => THREE.Texture) {
@@ -160,10 +166,10 @@ function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, si
 
 export function trainerPanelTexture() {
   return cached("trainer-panel", () => {
-    const S = 4; // px per mm
-    const c = canvas(TRAINER_W * S, TRAINER_H * S);
+    const S = printPxPerMm(); // px per mm
+    const c = canvas(Math.round(TRAINER_W * S), Math.round(TRAINER_H * S));
     const ctx = c.getContext("2d")!;
-    ctx.scale(S, S);
+    ctx.scale(c.width / TRAINER_W, c.height / TRAINER_H);
     // light grey printed aluminium panel (as photographed), faint grain
     ctx.fillStyle = "#e3e4e0";
     ctx.fillRect(0, 0, TRAINER_W, TRAINER_H);
@@ -381,11 +387,11 @@ export function knobAngle(detents: number, v: number) {
 /* -------------------------------------------------------------- */
 export function moduleTexture(m: ModuleDef) {
   return cached(`module-${m.id}`, () => {
-    const S = 4;
+    const S = printPxPerMm();
     const [W, H] = m.size;
-    const c = canvas(W * S, H * S);
+    const c = canvas(Math.round(W * S), Math.round(H * S));
     const ctx = c.getContext("2d")!;
-    ctx.scale(S, S);
+    ctx.scale(c.width / W, c.height / H);
     drawModuleFace(ctx, m);
     ageSurface(
       ctx,

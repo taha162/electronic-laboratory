@@ -32,7 +32,7 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 * **Real consequences** – supplies fold back into current limit on a short (the DC meter collapses to 0 V); a part dissipating above its rating smokes and, if left, burns out (open circuit, scorch mark) until you press *Replace*.
 * **Hear it** – wire a signal to the trainer's SPEAKER sockets and you hear the simulated voltage (clipping, rectification… all audible). Plugs, clips, knobs, switches and the scope have synthesised foley; the room has its fluorescent-ballast and transformer hum.
 * **Beyond reality** – *X-ray* shows the live voltage of every connected node and colours cords by potential; *Guide me* puts a pulsing ring and arrow on the exact sockets of the next connection with a ghost cord; Ctrl+Z / Ctrl+Y undo/redo the wiring.
-* **Photo mode** – hides the UI, adds a camera-like depth of field (auto-focus on what you orbit) and film grain, and captures a PNG.
+* **Photo mode** – hides the UI and captures a PNG. The whole scene stays in sharp focus (no depth-of-field blur, grain or haze); a final clarity pass (contrast-adaptive sharpening + dehaze) keeps the panel print crisp.
 
 ## Architecture
 

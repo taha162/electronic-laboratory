@@ -3,8 +3,8 @@ import * as THREE from "three";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Environment, Lightformer, PerformanceMonitor } from "@react-three/drei";
-import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping, Vignette, Noise, DepthOfField, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
-import { ToneMappingMode, BlendFunction, type DepthOfFieldEffect } from "postprocessing";
+import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping, Vignette, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
+import { ToneMappingMode, BlendFunction } from "postprocessing";
 import { RectAreaLightUniformsLib } from "three/examples/jsm/lights/RectAreaLightUniformsLib.js";
 import { useBench } from "@/store/bench";
 import { Room } from "./Room";
@@ -12,11 +12,11 @@ import { Trainer } from "./Trainer";
 import { Oscilloscope } from "./Oscilloscope";
 import { Multimeter } from "./Multimeter";
 import { Leads, PointerTracker, Wires, DESK_Y } from "./Cables";
-import { CameraRig, camTarget } from "./CameraRig";
+import { CameraRig } from "./CameraRig";
 import { anchorWorld, useUi } from "./registry";
-import { Atmosphere } from "./Atmosphere";
 import { Guide, Insight } from "./Overlays3D";
 import { PowerCords } from "./PowerCords";
+import { Clarity } from "./fx/Clarity";
 
 if (typeof window !== "undefined") RectAreaLightUniformsLib.init();
 
@@ -24,18 +24,18 @@ function Lights() {
   const sun = useRef<THREE.DirectionalLight>(null);
   return (
     <>
-      <hemisphereLight args={["#f4f7ff", "#b9aa8e", 0.55]} />
+      <hemisphereLight args={["#f4f7ff", "#b9aa8e", 0.45]} />
       {/* daylight from the window wall (behind the equipment, as in the photographs) */}
       <directionalLight
         ref={sun}
         position={[-0.9, 3.6, -3.4]}
-        intensity={1.25}
+        intensity={1.42}
         color="#fff6ea"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.00025}
         shadow-normalBias={0.015}
-        shadow-radius={7}
+        shadow-radius={4}
         shadow-blurSamples={18}
         shadow-camera-left={-1.4}
         shadow-camera-right={1.4}
@@ -80,30 +80,26 @@ function Env() {
   );
 }
 
+/**
+ * Sharp, clear image: no depth-of-field blur, no film grain, no haze. Everything
+ * is in focus; ambient occlusion and the key light's shadows give the depth, and
+ * a final clarity pass (adaptive sharpening + dehaze) keeps the print crisp.
+ */
 function Effects() {
   const quality = useBench((s) => s.quality);
-  const photo = useUi((s) => s.photo);
-  const dof = useRef<DepthOfFieldEffect>(null);
-  // focus on whatever the camera orbits (world units)
-  useFrame(({ camera }) => {
-    const e = dof.current;
-    if (!photo || !e) return;
-    const d = camera.position.distanceTo(camTarget);
-    e.cocMaterial.focusDistance = d;
-    e.cocMaterial.focusRange = Math.max(0.12, d * 0.35);
-  });
+  const dpr = useThree((s) => s.viewport.dpr);
   if (quality !== "high") return null;
   return (
     <EffectComposer multisampling={0} enableNormalPass={false} frameBufferType={THREE.HalfFloatType}>
-      <N8AO aoRadius={0.06} distanceFalloff={0.5} intensity={2.4} halfRes quality="medium" color="#2a241c" />
-      {photo ? <DepthOfField ref={dof} focusDistance={0.8} focusRange={0.3} bokehScale={3.4} resolutionScale={0.6} /> : <></>}
-      <Bloom mipmapBlur intensity={0.5} luminanceThreshold={2.6} luminanceSmoothing={0.4} radius={0.62} />
+      {/* full-resolution AO unless the canvas is already supersampled */}
+      <N8AO aoRadius={0.07} distanceFalloff={0.5} intensity={2.9} halfRes={dpr >= 1.5} quality="medium" color="#241f18" />
+      <Bloom mipmapBlur intensity={0.4} luminanceThreshold={2.6} luminanceSmoothing={0.4} radius={0.55} />
       <ToneMapping mode={ToneMappingMode.AGX} />
-      <HueSaturation saturation={0.16} />
-      <BrightnessContrast brightness={0.0} contrast={0.1} />
-      <Vignette offset={0.32} darkness={0.42} blendFunction={BlendFunction.NORMAL} />
-      <Noise opacity={photo ? 0.05 : 0.028} premultiply blendFunction={BlendFunction.SCREEN} />
+      <HueSaturation saturation={0.19} />
+      <BrightnessContrast brightness={0.0} contrast={0.12} />
+      <Vignette offset={0.38} darkness={0.26} blendFunction={BlendFunction.NORMAL} />
       <SMAA />
+      <Clarity sharpness={0.75} clarity={0.45} dehaze={0.85} />
     </EffectComposer>
   );
 }
@@ -189,12 +185,17 @@ function ReadySignal() {
 
 export default function LabScene() {
   const quality = useBench((s) => s.quality);
-  const [dpr, setDpr] = useState(quality === "high" ? 1.5 : 1);
-  useEffect(() => setDpr(quality === "high" ? 1.5 : 1), [quality]);
+  const maxDpr = (q: string) => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, q === "high" ? 2 : 1.5);
+  const [dpr, setDpr] = useState(() => Math.max(1, maxDpr(quality)));
+  useEffect(() => setDpr(Math.max(1, maxDpr(quality))), [quality]);
+  // photos are always rendered at full resolution; ?dpr=… pins it (captures, testing)
+  const photo = useUi((s) => s.photo);
+  const [pinned] = useState(() => (typeof window === "undefined" ? NaN : parseFloat(new URLSearchParams(window.location.search).get("dpr") ?? "")));
+  const renderDpr = Number.isFinite(pinned) ? Math.min(Math.max(pinned, 0.5), 3) : photo ? Math.max(dpr, maxDpr(quality)) : dpr;
   return (
     <Canvas
       shadows={quality === "high" ? "variance" : "soft"}
-      dpr={dpr}
+      dpr={renderDpr}
       gl={{ antialias: quality !== "high", powerPreference: "high-performance", preserveDrawingBuffer: true, stencil: false }}
       camera={{ fov: 46, near: 0.01, far: 40, position: [5.4, 1.62, 5.6] }}
       onPointerMissed={() => useBench.getState().cancel()}
@@ -203,8 +204,8 @@ export default function LabScene() {
       <PerformanceMonitor
         bounds={() => [38, 58]}
         flipflops={4}
-        onDecline={() => setDpr((d) => Math.max(0.7, d - 0.25))}
-        onIncline={() => setDpr((d) => Math.min(quality === "high" ? 1.75 : 1.25, d + 0.25))}
+        onDecline={() => setDpr((d) => Math.max(1, d - 0.25))}
+        onIncline={() => setDpr((d) => Math.min(Math.max(1, maxDpr(quality)), d + 0.25))}
       />
       <GlSettings />
       <ResponsiveFov />
@@ -213,7 +214,6 @@ export default function LabScene() {
       <Suspense fallback={null}>
         <Env />
         <Room />
-        <Atmosphere />
         <Trainer position={[0.03, DESK_Y, -0.07]} />
         <Oscilloscope />
         <Multimeter />
