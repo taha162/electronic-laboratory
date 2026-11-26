@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --color-panel: rgb(16 19 24 / 0.82);
+  --color-panel-solid: #12161c;
+  --color-edge: rgb(255 255 255 / 0.09);
+  --color-ink: #e9edf3;
+  --color-mute: #9aa4b2;
+  --color-accent: #f2b33d;
+  --color-cyan: #22c3f0;
+  --color-ch1: #f7e521;
+  --color-ok: #3ccf7a;
+  --color-bad: #ff6464;
+  --font-sans: var(--font-plex-arabic), var(--font-inter), system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #1a1d22;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.glass {
+  background: var(--color-panel);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--color-edge);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.55rem;
+  padding: 0.38rem 0.7rem;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: var(--color-ink);
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.btn:hover {
+  background: rgb(255 255 255 / 0.13);
+}
+.btn[data-on="true"] {
+  background: rgb(242 179 61 / 0.18);
+  border-color: rgb(242 179 61 / 0.55);
+  color: #ffe1a6;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.07);
+}
+.scroll-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 0.15);
+  border-radius: 3px;
+}
+input[type="number"],
+input[type="text"],
+select {
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 0.4rem;
+  padding: 0.3rem 0.45rem;
+  color: var(--color-ink);
+  font-size: 0.8rem;
+}
+select option {
+  background: #12161c;
+}
+
+@keyframes loadbar {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
