@@ -395,8 +395,19 @@ export const useBench = create<BenchState>()(
         }),
     }),
     {
-      name: "mosul-elab-bench-v3",
+      name: "mosul-elab-bench-v2",
       storage: createJSONStorage(() => localStorage),
+      // v3: the KL-21001 panel was re-laid out from the photographs (sockets, generator ranges).
+      // Keep the student's saved work, results and settings; start the bench wiring fresh.
+      version: 3,
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        if (version >= 3) return p as never;
+        const keep: Record<string, unknown> = {};
+        for (const k of ["saves", "results", "lang", "quality", "showHints", "sound", "experimentId", "step"]) if (p[k] !== undefined) keep[k] = p[k];
+        // merge() below fills everything else from the defaults
+        return keep as never;
+      },
       partialize: (s) => ({
         moduleId: s.moduleId,
         wires: s.wires,
