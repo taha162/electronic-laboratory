@@ -44,6 +44,31 @@ export function Oscilloscope() {
     return { tex: toTexture(c, { aniso: 8 }), ctx: c.getContext("2d")! };
   }, []);
   const bezel = useMemo(() => bezelTexture(), []);
+  // IPS panel: unlit backlit pixels, with the RGB sub-pixel structure resolving when you lean in
+  const lcdMat = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial({ map: tex });
+    m.onBeforeCompile = (sh) => {
+      sh.uniforms.uRes = { value: new THREE.Vector2(SCREEN_W, SCREEN_H) };
+      sh.fragmentShader =
+        "uniform vec2 uRes;\n" +
+        sh.fragmentShader.replace(
+          "#include <map_fragment>",
+          `#include <map_fragment>
+          {
+            vec2 px = vMapUv * uRes;
+            vec2 fw = fwidth(px);
+            float zoom = 1.0 / max(max(fw.x, fw.y), 1e-5);   // screen pixels per LCD pixel
+            float k = smoothstep(2.2, 7.0, zoom);
+            float sub = fract(px.x) * 3.0;
+            vec3 stripe = vec3(1.0 - step(1.0, sub), step(1.0, sub) * (1.0 - step(2.0, sub)), step(2.0, sub));
+            float rowGap = smoothstep(0.0, 0.14, fract(px.y)) * smoothstep(1.0, 0.86, fract(px.y));
+            vec3 mask = mix(vec3(1.0), stripe * 2.7 * rowGap + 0.04, k);
+            diffuseColor.rgb = diffuseColor.rgb * mask * 1.55 + vec3(0.010, 0.012, 0.018);
+          }`,
+        );
+    };
+    return m;
+  }, [tex]);
   const lastDraw = useRef(0);
   const lastVer = useRef(-1);
   useFrame(({ clock }) => {
@@ -61,9 +86,11 @@ export function Oscilloscope() {
     if (!g) return;
     registerAnchor("osc.ch1.src", g, new THREE.Vector3(-0.058, DEV.h + 0.026, 0));
     registerAnchor("osc.ch2.src", g, new THREE.Vector3(-0.024, DEV.h + 0.026, 0));
+    registerAnchor("osc.usb", g, new THREE.Vector3(0.045, DEV.h + 0.012, 0));
     return () => {
       unregisterAnchor("osc.ch1.src");
       unregisterAnchor("osc.ch2.src");
+      unregisterAnchor("osc.usb");
     };
   }, []);
   void useScopeUi;
@@ -98,7 +125,7 @@ export function Oscilloscope() {
           }}
         >
           <planeGeometry args={[0.154, 0.0902]} />
-          <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={1.05} roughness={0.2} toneMapped={false} />
+          <primitive object={lcdMat} attach="material" />
         </mesh>
         {/* glass reflection layer */}
         <mesh position={[0, DEV.h / 2, DEV.d / 2 + 0.001]} material={MAT.glass()}>

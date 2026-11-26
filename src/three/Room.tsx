@@ -4,7 +4,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { RoundedBox } from "@react-three/drei";
 import { useBench } from "@/store/bench";
 import { MAT, plastic } from "./materials";
-import { blindsTexture, deskTexture, floorTexture, manualTexture, wallTexture, waveformPaperTexture } from "./draw/textures";
+import { blindsTexture, clockFaceTexture, deskTexture, floorTexture, manualTexture, noticeTexture, outdoorTexture, wallTexture, waveformPaperTexture } from "./draw/textures";
+import { fabricNormal, laminateMaps, plasterNormal, terrazzoMaps } from "./draw/pbr";
+import { useFrame } from "@react-three/fiber";
 import { surfaces } from "./registry";
 import { Trainer } from "./Trainer";
 import { DESK_Y } from "./Cables";
@@ -15,7 +17,18 @@ const WIN = { y0: 0.86, y1: 2.68 };
 
 function Walls() {
   const wall = wallTexture();
-  const wallMat = useMemo(() => new THREE.MeshStandardMaterial({ map: wall, color: "#f1eee8", roughness: 0.92 }), [wall]);
+  const wallMat = useMemo(
+    () =>
+      new THREE.MeshStandardMaterial({
+        map: wall,
+        color: "#f1eee8",
+        roughness: 0.93,
+        normalMap: plasterNormal([7, 3]),
+        normalScale: new THREE.Vector2(0.45, 0.45),
+      }),
+    [wall],
+  );
+  const terr = terrazzoMaps();
   const W = ROOM.x1 - ROOM.x0,
     D = ROOM.z1 - ROOM.z0;
   const cx = (ROOM.x0 + ROOM.x1) / 2,
@@ -25,7 +38,7 @@ function Walls() {
       {/* floor */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
         <planeGeometry args={[W, D]} />
-        <meshStandardMaterial map={floorTexture()} roughness={0.35} metalness={0.02} />
+        <meshStandardMaterial map={floorTexture()} roughness={1} roughnessMap={terr.rough} normalMap={terr.normal} normalScale={[0.3, 0.3]} metalness={0.02} />
       </mesh>
       {/* skirting */}
       <mesh position={[cx, 0.05, ROOM.z0 + 0.006]} material={MAT.beigeDark()}>
@@ -73,15 +86,94 @@ function Walls() {
           <boxGeometry args={[2.66, 1.21, 0.01]} />
         </mesh>
       </group>
-      {/* ceiling fluorescent panels */}
+      {/* ceiling fluorescent fixtures: white steel housing, diffuser, louvers */}
       {[0, 2.4, 4.8].flatMap((x) =>
         [0.4, 2.6, 4.8].map((z) => (
-          <mesh key={`${x}-${z}`} position={[x, ROOM.h - 0.015, z]}>
-            <boxGeometry args={[1.2, 0.03, 0.3]} />
-            <meshStandardMaterial color="#ffffff" emissive="#fffdf5" emissiveIntensity={2.2} toneMapped={false} />
-          </mesh>
+          <group key={`${x}-${z}`} position={[x, ROOM.h - 0.03, z]}>
+            <mesh material={MAT.whiteAbs()}>
+              <boxGeometry args={[1.26, 0.06, 0.36]} />
+            </mesh>
+            <mesh position={[0, -0.031, 0]} rotation={[Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[1.18, 0.3]} />
+              <meshStandardMaterial color="#ffffff" emissive="#f6f9ff" emissiveIntensity={3.2} />
+            </mesh>
+            {Array.from({ length: 9 }).map((_, i) => (
+              <mesh key={i} position={[-0.56 + i * 0.14, -0.04, 0]} material={MAT.aluminium()}>
+                <boxGeometry args={[0.004, 0.018, 0.3]} />
+              </mesh>
+            ))}
+          </group>
         )),
       )}
+      {/* split air-conditioner on the left wall */}
+      <group position={[ROOM.x0 + 0.12, 2.45, 1.7]} rotation={[0, Math.PI / 2, 0]}>
+        <RoundedBox args={[0.95, 0.3, 0.22]} radius={0.04} smoothness={4} material={MAT.whiteAbs()} castShadow />
+        <mesh position={[0, -0.12, 0.1]} rotation={[0.5, 0, 0]} material={MAT.whiteAbs()}>
+          <boxGeometry args={[0.86, 0.06, 0.01]} />
+        </mesh>
+        <mesh position={[0.36, 0.05, 0.111]}>
+          <circleGeometry args={[0.008, 16]} />
+          <meshStandardMaterial color="#39d86b" emissive="#39d86b" emissiveIntensity={2} />
+        </mesh>
+        {/* condensate pipe */}
+        <mesh position={[-0.5, -0.6, -0.08]} material={MAT.whiteAbs()}>
+          <cylinderGeometry args={[0.012, 0.012, 1.0, 10]} />
+        </mesh>
+      </group>
+      <WallClock />
+      {/* safety notice board (cork) */}
+      <group position={[ROOM.x0 + 0.015, 1.55, 3.4]} rotation={[0, Math.PI / 2, 0]}>
+        <mesh>
+          <boxGeometry args={[1.2, 0.8, 0.02]} />
+          <meshStandardMaterial color="#a77b4c" roughness={0.95} />
+        </mesh>
+        <mesh position={[0, 0, 0.012]}>
+          <planeGeometry args={[1.12, 0.72]} />
+          <meshStandardMaterial color="#b98a58" roughness={1} normalMap={plasterNormal([2, 2])} />
+        </mesh>
+        <mesh position={[-0.27, 0, 0.014]} rotation={[0, 0, 0.02]}>
+          <planeGeometry args={[0.36, 0.5]} />
+          <meshStandardMaterial map={noticeTexture()} roughness={0.9} />
+        </mesh>
+        <mesh position={[0.2, 0.08, 0.014]} rotation={[0, 0, -0.04]}>
+          <planeGeometry args={[0.3, 0.42]} />
+          <meshStandardMaterial map={waveformPaperTexture(0)} roughness={0.9} />
+        </mesh>
+        {[
+          [-0.27, 0.24],
+          [0.2, 0.28],
+        ].map(([x, y], i) => (
+          <mesh key={i} position={[x, y, 0.02]}>
+            <sphereGeometry args={[0.008, 10, 8]} />
+            <meshStandardMaterial color={i ? "#2a62d8" : "#d82a2a"} roughness={0.3} />
+          </mesh>
+        ))}
+      </group>
+      {/* fire extinguisher by the door */}
+      <group position={[4.85, 0, ROOM.z1 - 0.15]}>
+        <mesh position={[0, 0.3, 0]} castShadow>
+          <cylinderGeometry args={[0.08, 0.08, 0.5, 24]} />
+          <meshPhysicalMaterial color="#c8141a" roughness={0.3} clearcoat={0.8} />
+        </mesh>
+        <mesh position={[0, 0.58, 0]} material={MAT.blackPlastic()}>
+          <cylinderGeometry args={[0.025, 0.04, 0.07, 16]} />
+        </mesh>
+        <mesh position={[0.05, 0.62, 0]} rotation={[0, 0, -0.4]} material={MAT.chrome()}>
+          <boxGeometry args={[0.1, 0.012, 0.025]} />
+        </mesh>
+        <mesh position={[0, 0.03, 0]} material={MAT.blackPlastic()}>
+          <cylinderGeometry args={[0.07, 0.07, 0.06, 16]} />
+        </mesh>
+      </group>
+      {/* light switch by the door */}
+      <mesh position={[5.0, 1.3, ROOM.z1 - 0.01]} rotation={[0, Math.PI, 0]} material={MAT.whiteAbs()}>
+        <boxGeometry args={[0.08, 0.12, 0.012]} />
+      </mesh>
+      {/* waste bin next to our bench */}
+      <mesh position={[-1.0, 0.17, 0.78]} castShadow>
+        <cylinderGeometry args={[0.15, 0.12, 0.34, 28, 1, true]} />
+        <meshStandardMaterial color="#3b4a5a" roughness={0.5} side={THREE.DoubleSide} />
+      </mesh>
     </group>
   );
 }
@@ -112,23 +204,28 @@ function WindowAndBlinds() {
   }, [n, W, cx]);
   const slatMat = useMemo(
     () =>
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshPhysicalMaterial({
         map: tex,
         side: THREE.DoubleSide,
-        roughness: 0.95,
-        // fabric glows a little with the daylight behind it
-        emissive: new THREE.Color("#d9c49b"),
+        roughness: 0.92,
+        normalMap: fabricNormal([2, 14]),
+        normalScale: new THREE.Vector2(0.5, 0.5),
+        sheen: 0.6,
+        sheenRoughness: 0.7,
+        sheenColor: new THREE.Color("#fff2d6"),
+        // translucent fabric: glows with the daylight behind it
+        emissive: new THREE.Color("#f0d29a"),
         emissiveMap: tex,
-        emissiveIntensity: 0.32,
+        emissiveIntensity: 0.7,
       }),
     [tex],
   );
   return (
     <group>
       {/* bright outdoor light */}
-      <mesh position={[cx, (WIN.y0 + WIN.y1) / 2, ROOM.z0 - 0.25]}>
-        <planeGeometry args={[W + 0.4, H + 0.3]} />
-        <meshBasicMaterial color="#f7f3ea" toneMapped={false} />
+      <mesh position={[cx, (WIN.y0 + WIN.y1) / 2 + 0.1, ROOM.z0 - 0.6]}>
+        <planeGeometry args={[W + 1.4, H + 0.9]} />
+        <meshBasicMaterial map={outdoorTexture()} color={new THREE.Color(1.9, 1.9, 1.9)} />
       </mesh>
       {/* frames */}
       {Array.from({ length: Math.ceil(W / 1.25) + 1 }).map((_, i) => (
@@ -196,8 +293,17 @@ export function LabBench({ position, w = 2.1, d = 0.9, main = false }: { positio
   }, [main]);
   const tex = deskTexture();
   const mats = useMemo(() => {
-    const edge = new THREE.MeshStandardMaterial({ color: "#dcdad3", roughness: 0.5 });
-    const t = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.42 });
+    const lam = laminateMaps();
+    const edge = new THREE.MeshStandardMaterial({ color: "#d8d6cf", roughness: 0.45 });
+    const t = new THREE.MeshPhysicalMaterial({
+      map: tex,
+      roughness: 1,
+      roughnessMap: lam.rough,
+      normalMap: lam.normal,
+      normalScale: new THREE.Vector2(0.25, 0.25),
+      clearcoat: 0.15,
+      clearcoatRoughness: 0.5,
+    });
     return [edge, edge, t, edge, edge, edge];
   }, [tex]);
   return (
@@ -363,6 +469,53 @@ function Props() {
       <mesh position={[0.36, DESK_Y + 0.01, -0.42]} rotation={[0, -0.2, 0]} castShadow>
         <boxGeometry args={[0.07, 0.02, 0.05]} />
         <meshStandardMaterial color="#e8e05a" roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+/** analog wall clock showing the real local time */
+function WallClock() {
+  const hr = useRef<THREE.Group>(null);
+  const mn = useRef<THREE.Group>(null);
+  const sc = useRef<THREE.Group>(null);
+  useFrame(() => {
+    const d = new Date();
+    const s = d.getSeconds() + d.getMilliseconds() / 1000;
+    const m = d.getMinutes() + s / 60;
+    const h = (d.getHours() % 12) + m / 60;
+    if (hr.current) hr.current.rotation.z = -(h / 12) * Math.PI * 2;
+    if (mn.current) mn.current.rotation.z = -(m / 60) * Math.PI * 2;
+    // quartz movement: ticks once per second
+    if (sc.current) sc.current.rotation.z = -(Math.floor(s) / 60) * Math.PI * 2;
+  });
+  return (
+    <group position={[ROOM.x0 + 0.02, 2.35, 2.95]} rotation={[0, Math.PI / 2, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} material={MAT.blackPlastic()}>
+        <cylinderGeometry args={[0.17, 0.17, 0.035, 48]} />
+      </mesh>
+      <mesh position={[0, 0, 0.018]}>
+        <circleGeometry args={[0.155, 48]} />
+        <meshStandardMaterial map={clockFaceTexture()} roughness={0.6} />
+      </mesh>
+      <group ref={hr} position={[0, 0, 0.022]}>
+        <mesh position={[0, 0.045, 0]} material={MAT.blackPlastic()}>
+          <boxGeometry args={[0.012, 0.09, 0.002]} />
+        </mesh>
+      </group>
+      <group ref={mn} position={[0, 0, 0.024]}>
+        <mesh position={[0, 0.065, 0]} material={MAT.blackPlastic()}>
+          <boxGeometry args={[0.008, 0.13, 0.002]} />
+        </mesh>
+      </group>
+      <group ref={sc} position={[0, 0, 0.026]}>
+        <mesh position={[0, 0.055, 0]}>
+          <boxGeometry args={[0.002, 0.14, 0.001]} />
+          <meshStandardMaterial color="#c4141a" />
+        </mesh>
+      </group>
+      <mesh position={[0, 0, 0.03]} material={MAT.glass()}>
+        <circleGeometry args={[0.158, 48]} />
       </mesh>
     </group>
   );

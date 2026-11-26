@@ -93,3 +93,12 @@ select {
 select option {
   background: #12161c;
 }
+
+@keyframes loadbar {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}

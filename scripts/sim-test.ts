@@ -1,6 +1,18 @@
 /* Numerical sanity tests of the MNA solver against textbook results. Run: npm run test:sim */
 import { runSimulation } from "../src/sim/solver";
-import { DIODES, BJTS, OPAMPS } from "../src/sim/models";
+import { DIODES, BJTS, OPAMPS, opampMacro } from "../src/sim/models";
+import type { Element } from "../src/sim/types";
+
+/** µA741 two-stage macromodel (internal node `int`) */
+function opamp(id: string, inp: number, inn: number, out: number, vcc: number, vee: number, int: number): Element[] {
+  const m = OPAMPS.UA741;
+  const mm = opampMacro(m);
+  return [
+    { t: "R", id: `${id}.rint`, a: int, b: 0, r: mm.rint },
+    { t: "C", id: `${id}.cc`, a: int, b: 0, c: mm.cc },
+    { t: "OA", id, inp, inn, out, vcc, vee, int, m },
+  ];
+}
 import type { Circuit, ProbeSpec } from "../src/sim/types";
 import { measure } from "../src/sim/measure";
 
@@ -170,14 +182,14 @@ function run(c: Circuit, probes: ProbeSpec[], tStop: number, tCap: number, dt: n
 {
   const r = run(
     {
-      nodeCount: 6,
+      nodeCount: 7,
       elements: [
         { t: "V", id: "vp", a: 4, b: 0, w: { kind: "dc", v: 12 }, rs: 0 },
         { t: "V", id: "vn", a: 5, b: 0, w: { kind: "dc", v: -12 }, rs: 0 },
         { t: "V", id: "s", a: 1, b: 0, w: { kind: "sine", amp: 0.5, freq: 1000, offset: 0 }, rs: 0 },
         { t: "R", id: "ri", a: 1, b: 2, r: 10e3 },
         { t: "R", id: "rf", a: 2, b: 3, r: 100e3 },
-        { t: "OA", id: "u", inp: 0, inn: 2, out: 3, vcc: 4, vee: 5, m: OPAMPS.UA741 },
+        ...opamp("u", 0, 2, 3, 4, 5, 6),
       ],
     },
     [{ id: "vo", kind: "v", a: 3, b: 0 }],
@@ -188,20 +200,64 @@ function run(c: Circuit, probes: ProbeSpec[], tStop: number, tCap: number, dt: n
   // saturation
   const r2 = run(
     {
-      nodeCount: 6,
+      nodeCount: 7,
       elements: [
         { t: "V", id: "vp", a: 4, b: 0, w: { kind: "dc", v: 12 }, rs: 0 },
         { t: "V", id: "vn", a: 5, b: 0, w: { kind: "dc", v: -12 }, rs: 0 },
         { t: "V", id: "s", a: 1, b: 0, w: { kind: "sine", amp: 5, freq: 1000, offset: 0 }, rs: 0 },
         { t: "R", id: "ri", a: 1, b: 2, r: 10e3 },
         { t: "R", id: "rf", a: 2, b: 3, r: 100e3 },
-        { t: "OA", id: "u", inp: 0, inn: 2, out: 3, vcc: 4, vee: 5, m: OPAMPS.UA741 },
+        ...opamp("u", 0, 2, 3, 4, 5, 6),
       ],
     },
     [{ id: "vo", kind: "v", a: 3, b: 0 }],
     0.004, 0.002, 2e-6,
   );
   check("Op-amp saturates at +10.5", measure(r2.t, r2.data.vo).max, 10.5, 0.2);
+}
+
+// 8b. Slew rate: voltage follower, ±5 V 10 kHz square -> output edge slope = SR (0.5 V/µs)
+{
+  const r = run(
+    {
+      nodeCount: 6,
+      elements: [
+        { t: "V", id: "vp", a: 3, b: 0, w: { kind: "dc", v: 12 }, rs: 0 },
+        { t: "V", id: "vn", a: 4, b: 0, w: { kind: "dc", v: -12 }, rs: 0 },
+        { t: "V", id: "s", a: 1, b: 0, w: { kind: "square", amp: 5, freq: 10000, offset: 0 }, rs: 0 },
+        ...opamp("u", 1, 2, 2, 3, 4, 5),
+      ],
+    },
+    [{ id: "vo", kind: "v", a: 2, b: 0 }],
+    0.0008, 0.0004, 0.1e-6,
+  );
+  const t = r.t,
+    v = r.data.vo;
+  let maxSlope = 0;
+  for (let i = 10; i < t.length; i++) maxSlope = Math.max(maxSlope, Math.abs(v[i] - v[i - 10]) / (t[i] - t[i - 10]));
+  check("741 slew rate (V/µs)", maxSlope / 1e6, 0.5, 0.06);
+  check("follower reaches ±5 V", measure(r.t, r.data.vo).vpp, 10, 0.2);
+}
+
+// 8c. Gain-bandwidth: non-inverting gain 101 at 10 kHz -> |A| = 101/sqrt(1+(10k/9.9k)^2) ≈ 71
+{
+  const r = run(
+    {
+      nodeCount: 7,
+      elements: [
+        { t: "V", id: "vp", a: 4, b: 0, w: { kind: "dc", v: 12 }, rs: 0 },
+        { t: "V", id: "vn", a: 5, b: 0, w: { kind: "dc", v: -12 }, rs: 0 },
+        { t: "V", id: "s", a: 1, b: 0, w: { kind: "sine", amp: 0.01, freq: 10000, offset: 0 }, rs: 0 },
+        { t: "R", id: "rf", a: 3, b: 2, r: 100e3 },
+        { t: "R", id: "rg", a: 2, b: 0, r: 1e3 },
+        ...opamp("u", 1, 2, 3, 4, 5, 6),
+      ],
+    },
+    [{ id: "vo", kind: "v", a: 3, b: 0 }],
+    0.003, 0.002, 0.2e-6,
+  );
+  const fc = 1e6 / 101;
+  check("741 closed-loop gain @10kHz (GBW)", measure(r.t, r.data.vo).vpp / 0.02, 101 / Math.sqrt(1 + (10000 / fc) ** 2), 6);
 }
 
 // 9. Bridge rectifier with floating transformer & capacitor filter

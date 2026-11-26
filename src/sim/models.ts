@@ -20,5 +20,14 @@ export const BJTS: Record<string, BjtModel & { label: string }> = {
 };
 
 export const OPAMPS: Record<string, OpAmpModel & { label: string }> = {
-  UA741: { label: "uA741", gain: 2e5, rout: 75, headroom: 1.5 },
+  UA741: { label: "uA741", gain: 2e5, rout: 75, headroom: 1.5, gbw: 1e6, sr: 0.5e6 },
 };
+
+/** two-stage macromodel element values derived from datasheet figures */
+export function opampMacro(m: OpAmpModel) {
+  const cc = 30e-12; // compensation capacitor (model value)
+  const gm = 2 * Math.PI * m.gbw * cc; // first-stage transconductance
+  const imax = m.sr * cc; // tail current -> slew rate
+  const rint = m.gain / gm; // sets the open-loop DC gain
+  return { cc, gm, imax, rint };
+}

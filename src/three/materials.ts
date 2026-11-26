@@ -1,5 +1,6 @@
 "use client";
 import * as THREE from "three";
+import { brushedNormal, plasticNormal, wearRoughness } from "./draw/pbr";
 
 const m = new Map<string, THREE.Material>();
 function get<T extends THREE.Material>(k: string, make: () => T): T {
@@ -12,32 +13,88 @@ function get<T extends THREE.Material>(k: string, make: () => T): T {
 }
 
 export const MAT = {
-  beige: () => get("beige", () => new THREE.MeshStandardMaterial({ color: "#e3d9c0", roughness: 0.62, metalness: 0 })),
+  // aged beige ABS of the KL-21001 cabinet (slightly yellowed, satin, moulded grain)
+  beige: () =>
+    get(
+      "beige",
+      () =>
+        new THREE.MeshPhysicalMaterial({
+          color: "#e2d6b9",
+          roughness: 1,
+          roughnessMap: wearRoughness([3, 3], 0.5, 0.72, 3),
+          normalMap: plasticNormal([40, 40]),
+          normalScale: new THREE.Vector2(0.1, 0.1),
+          clearcoat: 0.12,
+          clearcoatRoughness: 0.6,
+        }),
+    ),
   beigeDark: () => get("beigeDark", () => new THREE.MeshStandardMaterial({ color: "#cdbf9f", roughness: 0.7 })),
-  blackPlastic: () => get("blackPlastic", () => new THREE.MeshStandardMaterial({ color: "#141414", roughness: 0.38, metalness: 0 })),
+  blackPlastic: () =>
+    get(
+      "blackPlastic",
+      () =>
+        new THREE.MeshPhysicalMaterial({
+          color: "#121212",
+          roughness: 0.42,
+          normalMap: plasticNormal([3, 3]),
+          normalScale: new THREE.Vector2(0.25, 0.25),
+          clearcoat: 0.25,
+          clearcoatRoughness: 0.35,
+        }),
+    ),
   darkGrey: () => get("darkGrey", () => new THREE.MeshStandardMaterial({ color: "#2a2b2e", roughness: 0.5 })),
-  chrome: () => get("chrome", () => new THREE.MeshStandardMaterial({ color: "#d6d8dc", roughness: 0.18, metalness: 1 })),
+  chrome: () => get("chrome", () => new THREE.MeshStandardMaterial({ color: "#d9dbe0", roughness: 0.16, metalness: 1, normalMap: brushedNormal([2, 2]), normalScale: new THREE.Vector2(0.08, 0.08) })),
   brass: () => get("brass", () => new THREE.MeshStandardMaterial({ color: "#c9a85a", roughness: 0.3, metalness: 1 })),
   hole: () => get("hole", () => new THREE.MeshStandardMaterial({ color: "#050505", roughness: 0.9 })),
-  whiteAbs: () => get("whiteAbs", () => new THREE.MeshStandardMaterial({ color: "#f1f1ee", roughness: 0.42 })),
+  whiteAbs: () =>
+    get(
+      "whiteAbs",
+      () =>
+        new THREE.MeshPhysicalMaterial({
+          color: "#f2f2ef",
+          roughness: 0.38,
+          normalMap: plasticNormal([4, 4]),
+          normalScale: new THREE.Vector2(0.2, 0.2),
+          clearcoat: 0.3,
+          clearcoatRoughness: 0.3,
+        }),
+    ),
   glass: () =>
     get(
       "glass",
       () =>
         new THREE.MeshPhysicalMaterial({
           color: "#ffffff",
-          roughness: 0.04,
+          roughness: 0.03,
           metalness: 0,
-          transmission: 0,
           transparent: true,
-          opacity: 0.16,
+          // mostly see-through; the Fresnel reflection (specular) carries the look of glass
+          opacity: 0.045,
+          specularIntensity: 1,
           clearcoat: 1,
+          clearcoatRoughness: 0.02,
+          envMapIntensity: 1.4,
           depthWrite: false,
         }),
     ),
   blackGlass: () => get("blackGlass", () => new THREE.MeshPhysicalMaterial({ color: "#07080a", roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05 })),
-  aluminium: () => get("alu", () => new THREE.MeshStandardMaterial({ color: "#b9bcc0", roughness: 0.35, metalness: 0.85 })),
-  rubberGreen: () => get("rubberGreen", () => new THREE.MeshStandardMaterial({ color: "#1f8a53", roughness: 0.75 })),
+  aluminium: () =>
+    get("alu", () => new THREE.MeshStandardMaterial({ color: "#b9bcc0", roughness: 0.32, metalness: 0.85, normalMap: brushedNormal([1, 4]), normalScale: new THREE.Vector2(0.15, 0.15) })),
+  // TPE rubber holster of the multimeter
+  rubberGreen: () =>
+    get(
+      "rubberGreen",
+      () =>
+        new THREE.MeshPhysicalMaterial({
+          color: "#1d8a52",
+          roughness: 0.72,
+          normalMap: plasticNormal([5, 5]),
+          normalScale: new THREE.Vector2(0.6, 0.6),
+          sheen: 0.4,
+          sheenRoughness: 0.8,
+          sheenColor: new THREE.Color("#7fdcab"),
+        }),
+    ),
   white: () => get("white", () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 })),
 };
 
@@ -56,9 +113,13 @@ export function plastic(color: string, emissive = 0) {
   return get(
     `plastic-${color}-${emissive}`,
     () =>
-      new THREE.MeshStandardMaterial({
+      new THREE.MeshPhysicalMaterial({
         color: PLASTIC_COLORS[color] ?? color,
-        roughness: 0.42,
+        roughness: 0.34,
+        clearcoat: 0.35,
+        clearcoatRoughness: 0.25,
+        normalMap: plasticNormal([2, 2]),
+        normalScale: new THREE.Vector2(0.15, 0.15),
         emissive: PLASTIC_COLORS[color] ?? color,
         emissiveIntensity: emissive,
       }),

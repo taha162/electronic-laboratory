@@ -30,6 +30,11 @@ export const CAMERA_PRESETS: Record<string, () => { pos: V3; target: V3 }> = {
   door: () => ({ pos: [5.4, 1.62, 5.6], target: [0.3, 0.95, 0.0] }),
 };
 
+/** current orbit target (focus point for depth of field) */
+export const camTarget = new THREE.Vector3(0, 0.8, -0.06);
+
+let entered = false;
+
 export function CameraRig() {
   const ref = useRef<CameraControlsImpl>(null);
   const mode = useBench((s) => s.mode);
@@ -37,35 +42,51 @@ export function CameraRig() {
   const camCmd = useUi((s) => s.camCmd);
   const keys = useRef<Record<string, boolean>>({});
 
-  const go = (name: string, smooth = true) => {
+  const go = (name: string, smooth = true, slow = false) => {
     const p = CAMERA_PRESETS[name]?.();
     const c = ref.current;
     if (!p || !c) return;
-    c.setLookAt(...p.pos, ...p.target, smooth);
+    c.smoothTime = slow ? 1.25 : 0.35;
+    c.setLookAt(...p.pos, ...p.target, smooth).then(() => {
+      if (c) c.smoothTime = 0.35;
+    });
   };
 
+  // cinematic entrance: from the lab door to the student's seat (once per session)
+  const ready = useUi((s) => s.ready);
   useEffect(() => {
-    go("seat", false);
+    if (!ready) return;
+    if (entered || navigator.webdriver) {
+      go("seat", false);
+      entered = true;
+      return;
+    }
+    entered = true;
+    go("door", false);
+    const id = setTimeout(() => go("seat", true, true), 450);
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready]);
   useEffect(() => {
-    if (camCmd) go(camCmd.name);
+    if (camCmd) go(camCmd.name, true, camCmd.slow);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camCmd]);
   useEffect(() => {
     if (ref.current) ref.current.enabled = !dragging;
   }, [dragging]);
+  const firstMode = useRef(true);
   useEffect(() => {
     const c = ref.current;
     if (!c) return;
     if (mode === "experiment") {
       c.minDistance = 0.12;
       c.maxDistance = 2.2;
-      go("seat");
+      if (!firstMode.current) go("seat");
     } else {
       c.minDistance = 0.1;
       c.maxDistance = 9;
     }
+    firstMode.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -87,6 +108,7 @@ export function CameraRig() {
   useFrame((_, dt) => {
     const c = ref.current;
     if (!c) return;
+    c.getTarget(camTarget);
     const k = keys.current;
     const speed = (k["shift"] ? 2.4 : 1.1) * dt;
     let f = 0,

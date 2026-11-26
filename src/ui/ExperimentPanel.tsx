@@ -6,6 +6,7 @@ import { EXPERIMENTS, EXPERIMENT_BY_ID, type TableDef } from "@/lab/experiments"
 import { applyStep, checkStep, type CheckResult } from "@/lab/experimentActions";
 import { getModule } from "@/lab/modules";
 import { useT } from "./i18n";
+import { useUi } from "@/three/registry";
 
 function Panel({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (
@@ -173,6 +174,16 @@ function ResultsTable({ expId, table }: { expId: string; table: TableDef }) {
   );
 }
 
+function GuideToggle() {
+  const { t } = useT();
+  const guide = useUi((s) => s.guide);
+  return (
+    <button className="btn" data-on={guide} title={t("guideTip")} onClick={() => useUi.getState().setGuide(!guide)}>
+      ◎ {t("guide")}
+    </button>
+  );
+}
+
 export function ExperimentPanel() {
   const { t, lang } = useT();
   const expId = useBench((s) => s.experimentId);
@@ -255,6 +266,7 @@ export function ExperimentPanel() {
                   ✓ {t("check")}
                 </button>
               )}
+              {(step.wires || step.leads) && <GuideToggle />}
             </div>
             {check && (
               <div className={`mt-2 rounded-lg p-2 text-xs ${check.ok ? "bg-[var(--color-ok)]/15 text-[var(--color-ok)]" : "bg-[var(--color-bad)]/10 text-[#ffb3b3]"}`}>

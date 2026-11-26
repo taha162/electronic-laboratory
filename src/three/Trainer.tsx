@@ -12,6 +12,7 @@ import { BananaJack, Knob, PinJacks } from "./Controls";
 import { MAT, plastic } from "./materials";
 import { canvas, draw7seg, meterFaceTexture, moduleTexture, toTexture, trainerPanelTexture } from "./draw/textures";
 import { anchorWorld, mm, surfaces, useUi } from "./registry";
+import { plasticNormal, wearRoughness } from "./draw/pbr";
 import type { CustomPart } from "@/lab/types";
 import { removeOnRightClick } from "./interaction";
 
@@ -94,7 +95,7 @@ function DigitalMeter() {
         }}
       >
         <planeGeometry args={[mm(DVM_RECT.w), mm(DVM_RECT.h)]} />
-        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={0.9} roughness={0.25} />
+        <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={2.4} roughness={0.25} />
       </mesh>
       <mesh position={[0, 0.0036, 0]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.glass()}>
         <planeGeometry args={[mm(DVM_RECT.w), mm(DVM_RECT.h)]} />
@@ -106,16 +107,31 @@ function DigitalMeter() {
 function AnalogMeter({ m }: { m: (typeof TRAINER_METERS)[number] }) {
   const needle = useRef<THREE.Group>(null);
   const face = meterFaceTexture(m.full, m.unit, m.kind.startsWith("ac"));
-  const cur = useRef(0);
-  useFrame((_, dt) => {
+  // moving-coil movement: J·θ'' + D·θ' + K·θ = torque  (ω0 ≈ 2π·1.6 Hz, ζ ≈ 0.55)
+  const st = useRef({ x: 0, v: 0 });
+  useFrame((_, dtRaw) => {
     const r = useSim.getState().readings.meters;
-    const power = useBench.getState().power;
     const val = r[m.id as keyof typeof r] ?? 0;
-    void power;
-    const frac = Math.min(Math.max(val / m.full, -0.03), 1.06);
-    // damped needle movement (moving-coil inertia)
-    cur.current += (frac - cur.current) * Math.min(1, dt * 6);
-    if (needle.current) needle.current.rotation.y = 0.72 - cur.current * 1.44;
+    const target = Math.min(Math.max(val / m.full, -0.04), 1.08); // mechanical end stops
+    const w0 = 2 * Math.PI * 1.6,
+      zeta = 0.55;
+    const dt = Math.min(dtRaw, 0.05);
+    const S = st.current;
+    for (let i = 0; i < 4; i++) {
+      const h = dt / 4;
+      const acc = w0 * w0 * (target - S.x) - 2 * zeta * w0 * S.v;
+      S.v += acc * h;
+      S.x += S.v * h;
+      if (S.x < -0.04) {
+        S.x = -0.04;
+        S.v = Math.abs(S.v) * 0.2;
+      }
+      if (S.x > 1.08) {
+        S.x = 1.08;
+        S.v = -Math.abs(S.v) * 0.2;
+      }
+    }
+    if (needle.current) needle.current.rotation.y = 0.72 - S.x * 1.44;
   });
   const [x, z] = P(m.x + m.w / 2, m.y + m.h / 2);
   const W = mm(m.w),
@@ -213,13 +229,128 @@ function Led({ id, color, x, z }: { id: string; color: string; x: number; z: num
   );
 }
 
+/* ---------------------------------------------------------------- */
+/* overheating: smoke from parts above their rating, scorch when burnt */
+/* ---------------------------------------------------------------- */
+function smokeTexture() {
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, "rgba(255,255,255,0.9)");
+  g.addColorStop(0.5, "rgba(255,255,255,0.35)");
+  g.addColorStop(1, "rgba(255,255,255,0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+let smokeTex: THREE.Texture | null = null;
+
+function Smoke({ x, z, strength }: { x: number; z: number; strength: number }) {
+  const N = 60;
+  const ref = useRef<THREE.Points>(null);
+  const tex = useMemo(() => (smokeTex ??= smokeTexture()), []);
+  const st = useMemo(() => {
+    const pos = new Float32Array(N * 3);
+    const life = new Float32Array(N).map(() => Math.random());
+    return { pos, life };
+  }, []);
+  useFrame((_, dt) => {
+    const p = ref.current;
+    if (!p) return;
+    const a = p.geometry.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < N; i++) {
+      st.life[i] += dt * (0.35 + 0.25 * strength);
+      if (st.life[i] > 1) st.life[i] -= 1;
+      const L = st.life[i];
+      const sway = Math.sin((i * 13.1 + L * 6) * 0.7) * 0.006 * L;
+      a.array[i * 3] = x + sway + Math.sin(i) * 0.002;
+      a.array[i * 3 + 1] = 0.004 + L * 0.09;
+      a.array[i * 3 + 2] = z + Math.cos(i * 1.7) * 0.002 + L * 0.01;
+    }
+    a.needsUpdate = true;
+  });
+  return (
+    <points ref={ref} frustumCulled={false}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[st.pos, 3]} />
+      </bufferGeometry>
+      <pointsMaterial map={tex} size={0.016} sizeAttenuation transparent opacity={0.22 * Math.min(1, strength)} color="#cfcac2" depthWrite={false} />
+    </points>
+  );
+}
+
+function PartFx({ mod }: { mod: ModuleDef }) {
+  const stress = useSim((s) => s.readings.stress);
+  const damaged = useBench((s) => s.damaged ?? []);
+  const custom = useBench((s) => s.customParts);
+  const [W, H] = mod.size;
+  const posOf = (gid: string): [number, number] | null => {
+    let pins: string[] | undefined;
+    let at: [number, number] | undefined;
+    if (gid.startsWith("m.")) {
+      const p = mod.parts.find((x) => `m.${x.id}` === gid);
+      pins = p?.pins;
+      at = p?.at;
+    } else {
+      const p = custom.find((x) => `u.${x.id}` === gid);
+      pins = p?.gpins.map((g) => g.replace(/^m:/, ""));
+    }
+    if (at) return [mm(at[0] - W / 2), mm(at[1] - H / 2)];
+    const js = (pins ?? []).map((id) => mod.jacks.find((j) => j.id === id)).filter(Boolean) as { x: number; y: number }[];
+    if (!js.length) return null;
+    const cx = js.reduce((s, j) => s + j.x, 0) / js.length,
+      cy = js.reduce((s, j) => s + j.y, 0) / js.length;
+    return [mm(cx - W / 2), mm(cy - H / 2)];
+  };
+  const scorch = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+    g.addColorStop(0, "rgba(20,12,6,0.95)");
+    g.addColorStop(0.45, "rgba(60,36,14,0.55)");
+    g.addColorStop(1, "rgba(90,60,20,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }, []);
+  return (
+    <group>
+      {stress.map((s) => {
+        const p = posOf(s.id);
+        if (!p) return null;
+        return <Smoke key={s.id} x={p[0]} z={p[1]} strength={Math.min(2, s.power / s.rating / 2)} />;
+      })}
+      {damaged.map((id) => {
+        const p = posOf(id);
+        if (!p) return null;
+        return (
+          <mesh key={id} position={[p[0], 0.0006, p[1]]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[0.026, 0.026]} />
+            <meshBasicMaterial map={scorch} transparent depthWrite={false} />
+          </mesh>
+        );
+      })}
+    </group>
+  );
+}
+
 export function ModulePlate({ mod }: { mod: ModuleDef }) {
   const ref = useRef<THREE.Group>(null);
   const tex = moduleTexture(mod);
   const [W, H] = mod.size;
   const plateMats = useMemo(() => {
-    const side = new THREE.MeshStandardMaterial({ color: "#d9d9d4", roughness: 0.5 });
-    const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55 });
+    const side = new THREE.MeshStandardMaterial({ color: "#d6d6d0", roughness: 0.5, normalMap: plasticNormal([2, 2]), normalScale: new THREE.Vector2(0.2, 0.2) });
+    const top = new THREE.MeshPhysicalMaterial({
+      map: tex,
+      roughness: 1,
+      roughnessMap: wearRoughness([1.5, 1], 0.4, 0.62, 29),
+      normalMap: plasticNormal([7, 5]),
+      normalScale: new THREE.Vector2(0.16, 0.16),
+      clearcoat: 0.2,
+      clearcoatRoughness: 0.4,
+    });
     return [side, side, top, side, side, side];
   }, [tex]);
   const plateRef = useRef<THREE.Mesh>(null);
@@ -267,6 +398,7 @@ export function ModulePlate({ mod }: { mod: ModuleDef }) {
       {customParts.map((p) => (
         <CustomPart3D key={p.id} part={p} />
       ))}
+      <PartFx mod={mod} />
     </group>
   );
 }
@@ -418,7 +550,15 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
       <group position={[0, cy + nrm.y, nrm.z]} rotation={[SLOPE, 0, 0]}>
         <mesh ref={panelRef} position={[0, 0.0004, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[mm(TRAINER_W), mm(TRAINER_H)]} />
-          <meshStandardMaterial map={panelTex} roughness={0.55} />
+          <meshPhysicalMaterial
+            map={panelTex}
+            roughness={1}
+            roughnessMap={wearRoughness([2, 2], 0.42, 0.66, 19)}
+            normalMap={plasticNormal([9, 7])}
+            normalScale={[0.18, 0.18]}
+            clearcoat={0.15}
+            clearcoatRoughness={0.45}
+          />
         </mesh>
         {interactive ? (
           <>

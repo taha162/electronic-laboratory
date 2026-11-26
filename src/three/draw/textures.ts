@@ -35,6 +35,81 @@ function cached(key: string, make: () => THREE.Texture) {
 }
 
 /* -------------------------------------------------------------- */
+/* ageing / wear                                                   */
+/* -------------------------------------------------------------- */
+function srand(seed: number) {
+  let x = seed;
+  return () => {
+    x = (x * 16807) % 2147483647;
+    return x / 2147483647;
+  };
+}
+
+/** years of use: yellowed edges, grime around touched spots, fine scratches */
+export function ageSurface(ctx: CanvasRenderingContext2D, W: number, H: number, touched: [number, number, number][], seed = 7) {
+  const r = srand(seed);
+  ctx.save();
+  // UV yellowing (stronger near the edges)
+  const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.25, W / 2, H / 2, Math.max(W, H) * 0.75);
+  g.addColorStop(0, "rgba(200,170,90,0)");
+  g.addColorStop(1, "rgba(190,155,70,0.16)");
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+  // grime where fingers go
+  ctx.globalCompositeOperation = "source-over";
+  for (const [x, y, rad] of touched) {
+    const gg = ctx.createRadialGradient(x, y, rad * 0.3, x, y, rad);
+    gg.addColorStop(0, "rgba(70,58,40,0.10)");
+    gg.addColorStop(1, "rgba(70,58,40,0)");
+    ctx.fillStyle = gg;
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // fingerprints / smudges
+  for (let k = 0; k < 40; k++) {
+    const x = r() * W,
+      y = r() * H,
+      rad = 3 + r() * 7;
+    ctx.strokeStyle = `rgba(90,80,60,${0.02 + r() * 0.03})`;
+    ctx.lineWidth = 0.25;
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath();
+      ctx.ellipse(x, y, rad - i * 0.5, (rad - i * 0.5) * 0.7, r(), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+  // scratches
+  for (let k = 0; k < 70; k++) {
+    const x = r() * W,
+      y = r() * H,
+      L = 4 + r() * 24,
+      a = r() * Math.PI;
+    ctx.strokeStyle = r() < 0.5 ? `rgba(255,255,255,${0.1 + r() * 0.2})` : `rgba(60,50,40,${0.05 + r() * 0.08})`;
+    ctx.lineWidth = 0.15 + r() * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + Math.cos(a) * L * 0.5 + r() * 2, y + Math.sin(a) * L * 0.5, x + Math.cos(a) * L, y + Math.sin(a) * L);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** hand-written ballpoint / marker note */
+export function handNote(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string, rot = -0.05) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.8;
+  ctx.font = `${size}px "Segoe Print", "Bradley Hand", "Comic Sans MS", "Ink Free", cursive`;
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, 0, 0);
+  ctx.restore();
+}
+
+/* -------------------------------------------------------------- */
 /* KL-21001 front panel                                            */
 /* -------------------------------------------------------------- */
 const INK = "#161616";
@@ -204,7 +279,23 @@ export function trainerPanelTexture() {
         if (kn.maxLabel) text(ctx, kn.maxLabel, kn.x + R + 1, kn.y + R + 2, 3.2, "left", false);
       }
     }
-    // function icons near FUNCTION knob already as marks
+    // years of student use
+    const touched: [number, number, number][] = [
+      ...TRAINER_KNOBS.map((k) => [k.x, k.y, k.r * 2.4] as [number, number, number]),
+      ...TRAINER_JACKS.map((j) => [j.x, j.y, 9] as [number, number, number]),
+      [MODULE_SLOT.x + 20, MODULE_SLOT.y + MODULE_SLOT.h, 30],
+    ];
+    ageSurface(ctx, TRAINER_W, TRAINER_H, touched, 13);
+    // masking-tape bench label (as students do)
+    ctx.save();
+    ctx.translate(62, 421);
+    ctx.rotate(-0.025);
+    ctx.fillStyle = "rgba(190,228,170,0.92)";
+    ctx.fillRect(-22, -4.2, 44, 8.4);
+    ctx.fillStyle = "rgba(0,0,0,0.05)";
+    for (let i = 0; i < 30; i++) ctx.fillRect(-22 + Math.random() * 44, -4.2, 0.4, 8.4);
+    ctx.restore();
+    handNote(ctx, "Bench 3", 46, 421.5, 5, "#1b2a6b", -0.025);
     return toTexture(c, { aniso: 16 });
   });
 }
@@ -225,6 +316,21 @@ export function moduleTexture(m: ModuleDef) {
     const ctx = c.getContext("2d")!;
     ctx.scale(S, S);
     drawModuleFace(ctx, m);
+    ageSurface(
+      ctx,
+      W,
+      H,
+      m.jacks.filter((j) => !j.hidden).map((j) => [j.x, j.y, 5] as [number, number, number]),
+      m.id.length * 31,
+    );
+    // students' pen notes (like on the real boards)
+    if (m.id === "kl23001") {
+      handNote(ctx, "Vp=5V", 300, 128, 4.2, "#22348f", -0.06);
+      handNote(ctx, "x", 129, 31, 4, "#22348f", 0.2);
+      handNote(ctx, "+12", 6, 32, 3.4, "#a01818", -0.1);
+    } else if (m.id === "kl23003") {
+      handNote(ctx, "VCE=6V", 130, 160, 3.8, "#22348f", -0.04);
+    }
     return toTexture(c, { aniso: 16 });
   });
 }
@@ -381,7 +487,7 @@ export function blindsTexture() {
       H = 1024;
     const c = canvas(W, H);
     const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#d8c7a0";
+    ctx.fillStyle = "#dcc493";
     ctx.fillRect(0, 0, W, H);
     // woven texture
     for (let y = 0; y < H; y += 2) {
@@ -658,6 +764,151 @@ export function radialGlowTexture() {
     g.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);
+    return toTexture(c);
+  });
+}
+
+/** hazy, over-exposed view out of the window: sky, a university building, date palms */
+export function outdoorTexture() {
+  return cached("outdoor", () => {
+    const W = 2048,
+      H = 512;
+    const c = canvas(W, H);
+    const ctx = c.getContext("2d")!;
+    const sky = ctx.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#cfe0f2");
+    sky.addColorStop(0.55, "#eef2f4");
+    sky.addColorStop(1, "#f7f1e6");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H);
+    const r = srand(91);
+    // far buildings (hazy)
+    for (let i = 0; i < 14; i++) {
+      const x = r() * W,
+        w = 120 + r() * 260,
+        h = 80 + r() * 140;
+      ctx.fillStyle = `rgba(${215 + r() * 20},${205 + r() * 20},${190 + r() * 20},0.55)`;
+      ctx.fillRect(x, H - h - 40, w, h + 40);
+    }
+    // the faculty building across the courtyard
+    ctx.fillStyle = "#e6d6bb";
+    ctx.fillRect(260, 170, 1240, 342);
+    ctx.fillStyle = "#d9c6a6";
+    ctx.fillRect(260, 160, 1240, 14);
+    for (let fl = 0; fl < 4; fl++)
+      for (let k = 0; k < 22; k++) {
+        const x = 290 + k * 55,
+          y = 200 + fl * 75;
+        ctx.fillStyle = "#9fb3c2";
+        ctx.fillRect(x, y, 34, 44);
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillRect(x + 2, y + 2, 12, 40);
+        ctx.fillStyle = "#cdb999";
+        ctx.fillRect(x - 3, y + 44, 40, 5);
+      }
+    // date palms + bushes
+    const palm = (x: number, base: number, hgt: number) => {
+      ctx.strokeStyle = "#7d6a4f";
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(x, base);
+      ctx.quadraticCurveTo(x + 12, base - hgt * 0.5, x + 6, base - hgt);
+      ctx.stroke();
+      ctx.strokeStyle = "#5f7d4a";
+      ctx.lineWidth = 6;
+      for (let a = 0; a < 11; a++) {
+        const ang = -Math.PI + (a / 10) * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(x + 6, base - hgt);
+        ctx.quadraticCurveTo(x + 6 + Math.cos(ang) * 60, base - hgt - 30 + Math.sin(ang) * 25, x + 6 + Math.cos(ang) * 110, base - hgt + 40);
+        ctx.stroke();
+      }
+    };
+    palm(140, 512, 330);
+    palm(1640, 512, 360);
+    palm(1830, 512, 300);
+    for (let i = 0; i < 40; i++) {
+      ctx.fillStyle = `rgba(${80 + r() * 30},${110 + r() * 30},${70 + r() * 20},0.9)`;
+      ctx.beginPath();
+      ctx.ellipse(r() * W, 470 + r() * 50, 30 + r() * 60, 18 + r() * 30, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // haze
+    ctx.fillStyle = "rgba(250,248,240,0.25)";
+    ctx.fillRect(0, 0, W, H);
+    return toTexture(c);
+  });
+}
+
+/** Arabic / English lab safety notice */
+export function noticeTexture() {
+  return cached("notice", () => {
+    const W = 600,
+      H = 820;
+    const c = canvas(W, H);
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = "#fbfbf6";
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = "#b3241e";
+    ctx.fillRect(0, 0, W, 110);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.font = "bold 46px 'IBM Plex Sans Arabic', Tahoma, Arial";
+    ctx.fillText("تعليمات السلامة", W / 2, 70);
+    ctx.fillStyle = "#1c1c1c";
+    ctx.textAlign = "right";
+    ctx.direction = "rtl";
+    ctx.font = "28px 'IBM Plex Sans Arabic', Tahoma, Arial";
+    const rules = [
+      "١. أطفئ الجهاز قبل تغيير التوصيلات",
+      "٢. لا تتجاوز الجهد المقرر للقطع",
+      "٣. تأكد من قطبية المتسعات الكيميائية",
+      "٤. لا تلمس الأطراف المكشوفة",
+      "٥. أعد الأسلاك إلى مكانها بعد العمل",
+      "٦. يمنع الأكل والشرب داخل المختبر",
+    ];
+    rules.forEach((t, i) => ctx.fillText(t, W - 40, 180 + i * 62));
+    ctx.direction = "ltr";
+    ctx.textAlign = "left";
+    ctx.font = "italic 22px Arial";
+    ctx.fillStyle = "#444";
+    ctx.fillText("Electronic Circuits Laboratory", 40, 600);
+    ctx.fillText("College of Engineering — University of Mosul", 40, 636);
+    ctx.fillStyle = "#b3241e";
+    ctx.fillRect(40, 700, W - 80, 6);
+    return toTexture(c);
+  });
+}
+
+/** wall clock face (hands are 3D) */
+export function clockFaceTexture() {
+  return cached("clock", () => {
+    const S = 512;
+    const c = canvas(S, S);
+    const ctx = c.getContext("2d")!;
+    ctx.fillStyle = "#fdfdfb";
+    ctx.beginPath();
+    ctx.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#111";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "bold 52px Arial";
+    for (let h = 1; h <= 12; h++) {
+      const a = (h / 12) * Math.PI * 2 - Math.PI / 2;
+      ctx.fillText(String(h), S / 2 + Math.cos(a) * 190, S / 2 + Math.sin(a) * 190);
+    }
+    for (let m = 0; m < 60; m++) {
+      const a = (m / 60) * Math.PI * 2;
+      ctx.lineWidth = m % 5 ? 3 : 7;
+      ctx.beginPath();
+      ctx.moveTo(S / 2 + Math.cos(a) * 236, S / 2 + Math.sin(a) * 236);
+      ctx.lineTo(S / 2 + Math.cos(a) * (m % 5 ? 224 : 214), S / 2 + Math.sin(a) * (m % 5 ? 224 : 214));
+      ctx.strokeStyle = "#111";
+      ctx.stroke();
+    }
+    ctx.font = "22px Arial";
+    ctx.fillText("QUARTZ", S / 2, S / 2 + 90);
     return toTexture(c);
   });
 }

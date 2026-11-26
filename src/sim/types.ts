@@ -42,10 +42,15 @@ export interface BjtModel {
 }
 
 export interface OpAmpModel {
+  /** open-loop DC gain */
   gain: number;
   rout: number;
   /** headroom from each rail (V) */
   headroom: number;
+  /** gain-bandwidth product (Hz) */
+  gbw: number;
+  /** slew rate (V/s) */
+  sr: number;
 }
 
 export type Element =
@@ -66,10 +71,15 @@ export type Element =
       out: number;
       vcc: number | null;
       vee: number | null;
+      /**
+       * internal compensation node of the two-stage macromodel (the netlist adds
+       * Rint and Cc to ground). null = single-stage ideal-ish model.
+       */
+      int: number | null;
       m: OpAmpModel;
     }
-  /** ideal ammeter (0 V source). current measured flowing a -> b through the meter */
-  | { t: "AM"; id: string; a: number; b: number };
+  /** ammeter: current measured flowing a -> b through the meter; r = shunt (burden) resistance */
+  | { t: "AM"; id: string; a: number; b: number; r?: number };
 
 export interface Circuit {
   nodeCount: number;
@@ -108,4 +118,8 @@ export interface SimResult {
   op: Record<string, number>;
   /** solver statistics */
   stats: { steps: number; iterations: number; ms: number; nodes: number; unknowns: number };
+  /** per node (index = node number): [mean, min, max, rms] over the recorded window */
+  nodeStats: Float64Array;
+  /** average power dissipated by resistors / semiconductors over the recorded window (W) */
+  power: Record<string, number>;
 }

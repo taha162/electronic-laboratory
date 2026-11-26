@@ -44,6 +44,8 @@ export interface Snapshot {
   scope: ScopeSettings;
   dmmMode: DmmMode;
   customParts: CustomPart[];
+  /** burnt-out components (global element ids), behave as open circuits until replaced */
+  damaged?: string[];
 }
 
 export interface SavedExperiment {
@@ -125,7 +127,16 @@ interface BenchState extends Snapshot {
   quality: "high" | "low";
   showHints: boolean;
   toast: { text: string; t: number } | null;
+  /** undo / redo history of the wiring (not persisted) */
+  past: HistoryEntry[];
+  future: HistoryEntry[];
+  sound: boolean;
 
+  undo(): void;
+  redo(): void;
+  damage(id: string): void;
+  repairAll(): void;
+  setSound(on: boolean): void;
   setLang(l: Lang): void;
   setMode(m: "explore" | "experiment"): void;
   setPanel(p: PanelId): void;
@@ -159,6 +170,18 @@ interface BenchState extends Snapshot {
   resetBench(): void;
 }
 
+export interface HistoryEntry {
+  wires: Wire[];
+  leads: Record<LeadId, string | null>;
+  customParts: CustomPart[];
+}
+const HISTORY_MAX = 120;
+function hist(s: { wires: Wire[]; leads: Record<LeadId, string | null>; customParts: CustomPart[]; past: HistoryEntry[] }) {
+  const past = [...s.past, { wires: s.wires, leads: s.leads, customParts: s.customParts }];
+  if (past.length > HISTORY_MAX) past.shift();
+  return { past, future: [] as HistoryEntry[] };
+}
+
 const PIN_COUNT: Record<PartKind, number> = {
   R: 2, C: 2, CP: 2, L: 2, D: 2, Z: 2, LED: 2, NPN: 3, PNP: 3, POT: 3, RV: 2, OA: 5,
 };
@@ -174,6 +197,7 @@ export const useBench = create<BenchState>()(
       scope: DEFAULT_SCOPE,
       dmmMode: "dcv",
       customParts: [],
+      damaged: [],
 
       lang: "ar",
       mode: "experiment",
@@ -191,7 +215,39 @@ export const useBench = create<BenchState>()(
       quality: "high",
       showHints: true,
       toast: null,
+      past: [],
+      future: [],
+      sound: true,
 
+      undo: () =>
+        set((s) => {
+          const prev = s.past[s.past.length - 1];
+          if (!prev) return {};
+          return {
+            ...prev,
+            past: s.past.slice(0, -1),
+            future: [...s.future, { wires: s.wires, leads: s.leads, customParts: s.customParts }],
+            pending: null,
+            heldLead: null,
+            selectedWire: null,
+          };
+        }),
+      redo: () =>
+        set((s) => {
+          const nxt = s.future[s.future.length - 1];
+          if (!nxt) return {};
+          return {
+            ...nxt,
+            future: s.future.slice(0, -1),
+            past: [...s.past, { wires: s.wires, leads: s.leads, customParts: s.customParts }],
+            pending: null,
+            heldLead: null,
+            selectedWire: null,
+          };
+        }),
+      setSound: (sound) => set({ sound }),
+      damage: (id) => set((s) => ((s.damaged ?? []).includes(id) ? {} : { damaged: [...(s.damaged ?? []), id] })),
+      repairAll: () => set({ damaged: [] }),
       setLang: (lang) => set({ lang }),
       setMode: (mode) => set({ mode, pending: null, heldLead: null }),
       setPanel: (panel) => set({ panel: get().panel === panel ? "none" : panel }),
@@ -206,6 +262,7 @@ export const useBench = create<BenchState>()(
             Object.entries(s.leads).map(([k, v]) => [k, v && v.startsWith("m:") ? null : v]),
           ) as Record<LeadId, string | null>,
           customParts: [],
+          damaged: [],
           pending: null,
         })),
       clickJack: (jack) => {
@@ -225,7 +282,7 @@ export const useBench = create<BenchState>()(
               gpins: pins,
               label: p.text,
             };
-            set({ customParts: [...s.customParts, part], placing: { ...p, pins: [] } });
+            set({ ...hist(s), customParts: [...s.customParts, part], placing: { ...p, pins: [] } });
           } else set({ placing: { ...s.placing, pins } });
           return;
         }
@@ -261,14 +318,22 @@ export const useBench = create<BenchState>()(
         set((s) => {
           if (s.wires.some((w) => (w.a === a && w.b === b) || (w.a === b && w.b === a))) return {};
           return {
+            ...hist(s),
             wires: [...s.wires, { id: newId("w"), a, b, color: color ?? s.wireColor, kind: kind ?? "wire" }],
           };
         }),
-      removeWire: (id) => set((s) => ({ wires: s.wires.filter((w) => w.id !== id), selectedWire: null })),
+      removeWire: (id) => set((s) => ({ ...hist(s), wires: s.wires.filter((w) => w.id !== id), selectedWire: null })),
       selectWire: (id) => set({ selectedWire: id, pending: null }),
-      clearWires: () => set({ wires: [], leads: { ...DEFAULT_LEADS }, pending: null, heldLead: null }),
-      pickLead: (l) => set((s) => ({ heldLead: s.heldLead === l ? null : l, pending: null, leads: { ...s.leads, [l]: null } })),
-      attachLead: (l, jack) => set((s) => ({ leads: { ...s.leads, [l]: jack }, heldLead: null })),
+      clearWires: () => set((s) => ({ ...hist(s), wires: [], leads: { ...DEFAULT_LEADS }, pending: null, heldLead: null })),
+      pickLead: (l) =>
+        set((s) => ({
+          ...(s.leads[l] ? hist(s) : {}),
+          heldLead: s.heldLead === l ? null : l,
+          pending: null,
+          leads: { ...s.leads, [l]: null },
+        })),
+      attachLead: (l, jack) =>
+        set((s) => ({ ...(s.leads[l] !== jack && jack ? hist(s) : {}), leads: { ...s.leads, [l]: jack }, heldLead: null })),
       setScope: (fn) => set((s) => ({ scope: fn(s.scope) })),
       setDmmMode: (dmmMode) => set({ dmmMode }),
       moveDevice: (d, p) => set((s) => ({ devices: { ...s.devices, [d]: { ...s.devices[d], ...p } } })),
@@ -284,7 +349,7 @@ export const useBench = create<BenchState>()(
           return { results: { ...s.results, [exp]: e } };
         }),
       startPlacing: (p) => set({ placing: { ...p, pins: [] }, pending: null, heldLead: null }),
-      removeCustomPart: (id) => set((s) => ({ customParts: s.customParts.filter((p) => p.id !== id) })),
+      removeCustomPart: (id) => set((s) => ({ ...hist(s), customParts: s.customParts.filter((p) => p.id !== id) })),
       saveExperiment: (name) =>
         set((s) => ({
           saves: [
@@ -311,7 +376,7 @@ export const useBench = create<BenchState>()(
         }));
       },
       deleteSave: (id) => set((s) => ({ saves: s.saves.filter((x) => x.id !== id) })),
-      applySnapshot: (snap) => set({ ...snap, pending: null, heldLead: null }),
+      applySnapshot: (snap) => set((s) => ({ ...hist(s), ...snap, pending: null, heldLead: null })),
       setQuality: (quality) => set({ quality }),
       setShowHints: (showHints) => set({ showHints }),
       notify: (text) => set({ toast: { text, t: Date.now() } }),
@@ -341,6 +406,7 @@ export const useBench = create<BenchState>()(
         scope: s.scope,
         dmmMode: s.dmmMode,
         customParts: s.customParts,
+        damaged: s.damaged,
         lang: s.lang,
         devices: s.devices,
         experimentId: s.experimentId,
@@ -349,6 +415,7 @@ export const useBench = create<BenchState>()(
         saves: s.saves,
         quality: s.quality,
         showHints: s.showHints,
+        sound: s.sound,
       }),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<BenchState>;
@@ -373,5 +440,6 @@ export function snapshotOf(s: Snapshot): Snapshot {
     scope: s.scope,
     dmmMode: s.dmmMode,
     customParts: s.customParts,
+    damaged: s.damaged ?? [],
   };
 }

@@ -6,6 +6,10 @@ import { useBench } from "@/store/bench";
 import type { LeadId, Wire } from "@/lab/types";
 import { anchorNormal, anchorWorld, pointerHit, surfaces, useUi } from "./registry";
 import { MAT, PLASTIC_COLORS, plastic } from "./materials";
+import { RoundedBox } from "@react-three/drei";
+import { plasticNormal } from "./draw/pbr";
+import { nodeVoltage, voltageColor } from "./simView";
+import { sfx } from "@/audio/audio";
 import { removeOnRightClick, setCursor } from "./interaction";
 
 export const DESK_Y = 0.762;
@@ -102,33 +106,59 @@ function Plug({ color, small, refFn }: { color: string; small: boolean; refFn: (
   );
 }
 
-function PatchCord({ w }: { w: Wire }) {
+/** PVC insulation of the patch cords */
+function cordMaterial(color: string) {
+  return new THREE.MeshPhysicalMaterial({
+    color,
+    roughness: 0.42,
+    clearcoat: 0.35,
+    clearcoatRoughness: 0.3,
+    normalMap: plasticNormal([24, 1]),
+    normalScale: new THREE.Vector2(0.12, 0.12),
+    emissive: color,
+    emissiveIntensity: 0,
+  });
+}
+
+function PatchCord({ w, stackA, stackB }: { w: Wire; stackA: number; stackB: number }) {
   const selected = useBench((s) => s.selectedWire === w.id);
   const tube = useTube(0.0017, 72);
   const pa = useRef<THREE.Group | null>(null);
   const pb = useRef<THREE.Group | null>(null);
-  const small = w.a.startsWith("m:") && w.b.startsWith("m:");
-  const plugLen = small ? 0.013 : 0.018;
+  const smallA = w.a.startsWith("m:"),
+    smallB = w.b.startsWith("m:");
+  const lenA = smallA ? 0.0125 : 0.018,
+    lenB = smallB ? 0.0125 : 0.018;
   const va = useMemo(() => new THREE.Vector3(), []);
   const vb = useMemo(() => new THREE.Vector3(), []);
-  useFrame(() => {
+  const col = PLASTIC_COLORS[w.color] ?? w.color;
+  const mat = useMemo(() => cordMaterial(col), [col]);
+  const insightCol = useMemo(() => new THREE.Color(), []);
+  useFrame(({ clock }) => {
     const a = anchorWorld(w.a, va),
       b = anchorWorld(w.b, vb);
     if (!a || !b) return tube.update(null, []);
     const na = anchorNormal(w.a),
       nb = anchorNormal(w.b);
+    // stacked banana plugs sit in the rear socket of the plug below
+    a.addScaledVector(na, stackA);
+    b.addScaledVector(nb, stackB);
     orient(pa.current, a, na);
     orient(pb.current, b, nb);
-    const ta = a.clone().addScaledVector(na, plugLen),
-      tb = b.clone().addScaledVector(nb, plugLen);
+    const ta = a.clone().addScaledVector(na, lenA),
+      tb = b.clone().addScaledVector(nb, lenB);
     tube.update(cableCurve(ta, na, tb, nb, 0.02, 0.22), [...ta.toArray(), ...tb.toArray()]);
+    // X-ray mode: cords glow with the colour of their potential
+    if (useUi.getState().insight) {
+      const v = nodeVoltage(w.a);
+      voltageColor(v, insightCol);
+      mat.emissive.copy(insightCol);
+      mat.emissiveIntensity = 0.55 + 0.25 * Math.sin(clock.elapsedTime * 3);
+    } else {
+      mat.emissive.set(col);
+      mat.emissiveIntensity = selected ? 0.55 : 0;
+    }
   });
-  const col = PLASTIC_COLORS[w.color] ?? w.color;
-  const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.45, emissive: col, emissiveIntensity: 0 }),
-    [col],
-  );
-  mat.emissiveIntensity = selected ? 0.55 : 0;
   const handlers = {
     onClick: (e: { stopPropagation(): void }) => {
       e.stopPropagation();
@@ -137,8 +167,12 @@ function PatchCord({ w }: { w: Wire }) {
     onDoubleClick: (e: { stopPropagation(): void }) => {
       e.stopPropagation();
       useBench.getState().removeWire(w.id);
+      sfx("unplug");
     },
-    onContextMenu: removeOnRightClick(() => useBench.getState().removeWire(w.id)),
+    onContextMenu: removeOnRightClick(() => {
+      useBench.getState().removeWire(w.id);
+      sfx("unplug");
+    }),
     onPointerOver: (e: { stopPropagation(): void }) => {
       e.stopPropagation();
       setCursor("pointer");
@@ -148,8 +182,8 @@ function PatchCord({ w }: { w: Wire }) {
   return (
     <group {...handlers}>
       <mesh ref={tube.mesh} material={mat} castShadow />
-      <Plug color={w.color} small={w.a.startsWith("m:")} refFn={(o) => (pa.current = o)} />
-      <Plug color={w.color} small={w.b.startsWith("m:")} refFn={(o) => (pb.current = o)} />
+      <Plug color={w.color} small={smallA} refFn={(o) => (pa.current = o)} />
+      <Plug color={w.color} small={smallB} refFn={(o) => (pb.current = o)} />
     </group>
   );
 }
@@ -157,16 +191,24 @@ function PatchCord({ w }: { w: Wire }) {
 /** short-circuit clip bridging two neighbouring sockets on a module */
 function ShortClip({ w }: { w: Wire }) {
   const g = useRef<THREE.Group>(null);
-  const body = useRef<THREE.Mesh>(null);
+  const body = useRef<THREE.Group>(null);
+  const pinA = useRef<THREE.Mesh>(null);
+  const pinB = useRef<THREE.Mesh>(null);
   const selected = useBench((s) => s.selectedWire === w.id);
   const va = useMemo(() => new THREE.Vector3(), []);
   const vb = useMemo(() => new THREE.Vector3(), []);
+  const col = PLASTIC_COLORS[w.color] ?? w.color;
+  const mat = useMemo(
+    () => new THREE.MeshPhysicalMaterial({ color: col, roughness: 0.38, clearcoat: 0.4, clearcoatRoughness: 0.25, emissive: col, emissiveIntensity: 0 }),
+    [col],
+  );
+  mat.emissiveIntensity = selected ? 0.5 : 0;
   useFrame(() => {
     const a = anchorWorld(w.a, va),
       b = anchorWorld(w.b, vb);
     if (!a || !b || !g.current || !body.current) return;
     const n = anchorNormal(w.a);
-    const mid = a.clone().add(b).multiplyScalar(0.5).addScaledVector(n, 0.0042);
+    const mid = a.clone().add(b).multiplyScalar(0.5).addScaledVector(n, 0.0046);
     g.current.position.copy(mid);
     // x axis along a->b, y along normal
     const xAxis = b.clone().sub(a).normalize();
@@ -174,7 +216,9 @@ function ShortClip({ w }: { w: Wire }) {
     const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis);
     g.current.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis));
     const L = a.distanceTo(b);
-    body.current.scale.set(L + 0.007, 1, 1);
+    body.current.scale.set(L + 0.0072, 1, 1);
+    pinA.current?.position.set(-L / 2, -0.0046, 0);
+    pinB.current?.position.set(L / 2, -0.0046, 0);
   });
   return (
     <group
@@ -186,12 +230,27 @@ function ShortClip({ w }: { w: Wire }) {
       onDoubleClick={(e) => {
         e.stopPropagation();
         useBench.getState().removeWire(w.id);
+        sfx("unplug");
       }}
-      onContextMenu={removeOnRightClick(() => useBench.getState().removeWire(w.id))}
+      onContextMenu={removeOnRightClick(() => {
+        useBench.getState().removeWire(w.id);
+        sfx("unplug");
+      })}
     >
-      <mesh ref={body} castShadow>
-        <boxGeometry args={[1, 0.0062, 0.0052]} />
-        <meshStandardMaterial color={PLASTIC_COLORS[w.color] ?? w.color} roughness={0.4} emissive={PLASTIC_COLORS[w.color] ?? w.color} emissiveIntensity={selected ? 0.5 : 0} />
+      <group ref={body}>
+        <RoundedBox args={[1, 0.0064, 0.0056]} radius={0.0011} smoothness={2} material={mat} castShadow />
+        {/* moulded grip ridges */}
+        {[-0.22, 0, 0.22].map((x) => (
+          <mesh key={x} position={[x, 0.0033, 0]} material={mat}>
+            <boxGeometry args={[0.06, 0.0008, 0.0056]} />
+          </mesh>
+        ))}
+      </group>
+      <mesh ref={pinA} material={MAT.chrome()}>
+        <cylinderGeometry args={[0.0007, 0.0007, 0.003, 8]} />
+      </mesh>
+      <mesh ref={pinB} material={MAT.chrome()}>
+        <cylinderGeometry args={[0.0007, 0.0007, 0.003, 8]} />
       </mesh>
     </group>
   );
@@ -199,9 +258,26 @@ function ShortClip({ w }: { w: Wire }) {
 
 export function Wires() {
   const wires = useBench((s) => s.wires);
+  // stacking order: clips first (they sit in the socket), then cords in order of insertion
+  const stacks = useMemo(() => {
+    const h = new Map<string, number>();
+    const out: Record<string, [number, number]> = {};
+    for (const w of wires) if (w.kind === "clip") for (const j of [w.a, w.b]) h.set(j, Math.max(h.get(j) ?? 0, 0.0085));
+    for (const w of wires) {
+      if (w.kind === "clip") continue;
+      const ha = h.get(w.a) ?? 0,
+        hb = h.get(w.b) ?? 0;
+      out[w.id] = [ha, hb];
+      h.set(w.a, ha + (w.a.startsWith("m:") ? 0.0105 : 0.0155));
+      h.set(w.b, hb + (w.b.startsWith("m:") ? 0.0105 : 0.0155));
+    }
+    return out;
+  }, [wires]);
   return (
     <group>
-      {wires.map((w) => (w.kind === "clip" ? <ShortClip key={w.id} w={w} /> : <PatchCord key={w.id} w={w} />))}
+      {wires.map((w) =>
+        w.kind === "clip" ? <ShortClip key={w.id} w={w} /> : <PatchCord key={w.id} w={w} stackA={stacks[w.id]?.[0] ?? 0} stackB={stacks[w.id]?.[1] ?? 0} />,
+      )}
       <GhostWire />
     </group>
   );

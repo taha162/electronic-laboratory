@@ -3,13 +3,28 @@
  * into an MNA circuit for the solver.
  */
 import type { Circuit, Element, ProbeSpec, Waveform } from "@/sim/types";
-import { BJTS, DIODES, OPAMPS } from "@/sim/models";
+import { BJTS, DIODES, OPAMPS, opampMacro } from "@/sim/models";
 import type { CustomPart, PartDef } from "./types";
 import { TRAINER_JACKS, VR_VALUES, adjVoltage, fgAmplitudeVpp, fgFrequency } from "./trainer";
 import { getModule } from "./modules";
 import type { Snapshot } from "@/store/bench";
 
 export const AC_FREQ = 50; // mains frequency (Iraq)
+/** current limits of the KL-21001 supplies (A) — above this the supply folds back */
+export const SOURCE_LIMITS: Record<string, { lim: number; name: string }> = {
+  "src.ps.p5": { lim: 1, name: "+5V" },
+  "src.ps.m5": { lim: 1, name: "-5V" },
+  "src.ps.p12": { lim: 1, name: "+12V" },
+  "src.ps.m12": { lim: 1, name: "-12V" },
+  "src.adj.vp": { lim: 0.5, name: "ADJ V+" },
+  "src.adj.vm": { lim: 0.5, name: "ADJ V-" },
+  "src.ac1": { lim: 1, name: "9V AC" },
+  "src.ac2": { lim: 1, name: "9V AC" },
+};
+export interface BuildOptions {
+  /** supplies currently in current-limit (fold-back) */
+  limited?: Set<string>;
+}
 export const AC_VRMS = 9;
 
 class UnionFind {
@@ -47,6 +62,8 @@ export interface BuiltCircuit {
   hasReactive: boolean;
   /** rough slowest RC/L time constant of the connected circuit (s) */
   tau: number;
+  /** jack / terminal id -> node index in the solved (pruned) circuit, -1 if floating */
+  nodeIndex: (id: string) => number;
   /** signature used to skip identical re-simulations */
   key: string;
 }
@@ -60,7 +77,7 @@ function terminals(e: Element): number[] {
     case "Q":
       return [e.c, e.b, e.e];
     case "OA":
-      return [e.inp, e.inn, e.out, ...(e.vcc != null ? [e.vcc] : []), ...(e.vee != null ? [e.vee] : [])];
+      return [e.inp, e.inn, e.out, ...(e.vcc != null ? [e.vcc] : []), ...(e.vee != null ? [e.vee] : []), ...(e.int != null ? [e.int] : [])];
     default:
       return [e.a, e.b];
   }
@@ -70,7 +87,7 @@ function terminals(e: Element): number[] {
  * Drop "islands" of the board that are not connected to ground or to any source:
  * they carry no current and only inflate the MNA matrix. Renumbers nodes.
  */
-function prune(c0: Circuit, probes: ProbeSpec[]) {
+function prune(c0: Circuit, probes: ProbeSpec[], userNodes: Set<number>) {
   // 1) iteratively strip two-terminal elements hanging from an otherwise unconnected node
   let elems = c0.elements;
   for (let pass = 0; pass < 50; pass++) {
@@ -85,25 +102,38 @@ function prune(c0: Circuit, probes: ProbeSpec[]) {
     elems = next;
   }
   const c: Circuit = { nodeCount: c0.nodeCount, elements: elems };
-  // 2) drop islands not tied to ground or to a source
+  // 2) partition into sub-circuits that only share ground (they are electrically
+  //    independent) and keep those that contain a source AND something the student
+  //    connected; op-amp supply pins are ideal sources, so they don't couple blocks.
   const parent = Array.from({ length: c.nodeCount }, (_, i) => i);
   const find = (a: number): number => {
     while (parent[a] !== a) a = parent[a] = parent[parent[a]];
     return a;
   };
+  const unionTerms = (e: Element): number[] => (e.t === "OA" ? [e.inp, e.inn, e.out, ...(e.int != null ? [e.int] : [])] : terminals(e));
   for (const e of c.elements) {
-    const t = terminals(e);
+    const t = unionTerms(e).filter((x) => x !== 0);
     for (let i = 1; i < t.length; i++) {
       const a = find(t[0]),
         b = find(t[i]);
       if (a !== b) parent[a] = b;
     }
   }
-  const live = new Set<number>([find(0)]);
-  for (const e of c.elements) if (e.t === "V" || e.t === "I" || e.t === "OA") live.add(find(terminals(e)[0]));
+  const hasSource = new Set<number>();
+  for (const e of c.elements) {
+    if (e.t === "V" || e.t === "I") for (const x of [e.a, e.b]) if (x) hasSource.add(find(x));
+    if (e.t === "OA" && e.out) hasSource.add(find(e.out));
+  }
+  const relevant = new Set<number>();
+  for (const x of userNodes) if (x > 0 && x < c.nodeCount) relevant.add(find(x));
+  const keepRoots = new Set<number>([...relevant].filter((r) => hasSource.has(r)));
+  // supplies of kept op-amps must be solved too
+  for (const e of c.elements)
+    if (e.t === "OA" && keepRoots.has(find(e.out))) for (const x of [e.vcc, e.vee]) if (x) keepRoots.add(find(x));
+  const live = { has: (r: number) => r === find(0) || keepRoots.has(r) };
   const map = new Map<number, number>([[0, 0]]);
   let n = 1;
-  const keepNode = (x: number) => live.has(find(x));
+  const keepNode = (x: number) => x === 0 || live.has(find(x));
   const remap = (x: number) => {
     if (!keepNode(x)) return -1;
     let m = map.get(x);
@@ -123,7 +153,15 @@ function prune(c0: Circuit, probes: ProbeSpec[]) {
         els.push({ ...e, c: r(e.c), b: r(e.b), e: r(e.e) });
         break;
       case "OA":
-        els.push({ ...e, inp: r(e.inp), inn: r(e.inn), out: r(e.out), vcc: e.vcc != null ? r(e.vcc) : null, vee: e.vee != null ? r(e.vee) : null });
+        els.push({
+          ...e,
+          inp: r(e.inp),
+          inn: r(e.inn),
+          out: r(e.out),
+          vcc: e.vcc != null ? r(e.vcc) : null,
+          vee: e.vee != null ? r(e.vee) : null,
+          int: e.int != null ? r(e.int) : null,
+        });
         break;
       default:
         els.push({ ...e, a: r(e.a), b: r(e.b) } as Element);
@@ -150,14 +188,16 @@ function prune(c0: Circuit, probes: ProbeSpec[]) {
   for (const e of els) {
     if (e.t === "C") {
       reactive = true;
-      const r = Math.max(rAt.get(e.a) ?? 0, rAt.get(e.b) ?? 0, 1e3);
+      // a capacitor settles through the lower-impedance side (coupling caps settle fast,
+      // integrator / clamp capacitors between two high-impedance nodes settle slowly)
+      const r = Math.max(Math.min(rAt.get(e.a) ?? 0, rAt.get(e.b) ?? 0), 1e3);
       tau = Math.max(tau, e.c * r);
     } else if (e.t === "L") {
       reactive = true;
       tau = Math.max(tau, e.l / 10);
     }
   }
-  return { circuit: { nodeCount: n, elements: els }, probes: pr, tau, reactive };
+  return { circuit: { nodeCount: n, elements: els }, probes: pr, tau, reactive, map };
 }
 
 function fgWaveform(knobs: Record<string, number>): Waveform {
@@ -176,7 +216,9 @@ export function fgSettings(knobs: Record<string, number>) {
   return w.kind === "dc" ? { kind: "dc", vpp: 0, freq: 0 } : { kind: w.kind, vpp: w.amp * 2, freq: w.freq };
 }
 
-export function buildCircuit(s: Snapshot): BuiltCircuit {
+export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit {
+  const limited = opts.limited ?? new Set<string>();
+  const damaged = new Set(s.damaged ?? []);
   const mod = getModule(s.moduleId);
   const uf = new UnionFind();
   uf.add(EARTH);
@@ -245,8 +287,15 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
     const ttlF = fg.kind === "dc" ? 1000 : fg.freq;
     els.push({ t: "V", id: "src.ttl", a: T("fg.ttl"), b: 0, w: { kind: "square", amp: 2.5, offset: 2.5, freq: ttlF }, rs: 50 });
     if (degree.get("tr:fg.ttl")) activeFreqs.push(ttlF);
-    const dc = (id: string, v: number) =>
-      els.push({ t: "V", id: `src.${id}`, a: T(id), b: 0, w: { kind: "dc", v }, rs: 0.05 });
+    // a supply in current limit behaves like a source behind a resistance V/Ilim
+    const rsOf = (id: string, v: number, base: number) => {
+      const L = SOURCE_LIMITS[id];
+      return L && limited.has(id) ? Math.max(base, Math.abs(v) / L.lim) : base;
+    };
+    const dc = (id: string, v: number) => {
+      els.push({ t: "V", id: `src.${id}`, a: T(id), b: 0, w: { kind: "dc", v }, rs: rsOf(`src.${id}`, v, 0.05) });
+      probes.push({ id: `src:src.${id}`, kind: "i", el: `src.${id}` });
+    };
     dc("ps.p5", 5);
     dc("ps.m5", -5);
     dc("ps.p12", 12);
@@ -255,8 +304,9 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
     dc("adj.vp", va);
     dc("adj.vm", -va);
     const acAmp = AC_VRMS * Math.SQRT2;
-    els.push({ t: "V", id: "src.ac1", a: T("ac.a"), b: T("ac.ct"), w: { kind: "sine", amp: acAmp, freq: AC_FREQ, offset: 0 }, rs: 0.8 });
-    els.push({ t: "V", id: "src.ac2", a: T("ac.ct"), b: T("ac.b"), w: { kind: "sine", amp: acAmp, freq: AC_FREQ, offset: 0 }, rs: 0.8 });
+    els.push({ t: "V", id: "src.ac1", a: T("ac.a"), b: T("ac.ct"), w: { kind: "sine", amp: acAmp, freq: AC_FREQ, offset: 0 }, rs: rsOf("src.ac1", acAmp, 0.8) });
+    els.push({ t: "V", id: "src.ac2", a: T("ac.ct"), b: T("ac.b"), w: { kind: "sine", amp: acAmp, freq: AC_FREQ, offset: 0 }, rs: rsOf("src.ac2", acAmp, 0.8) });
+    probes.push({ id: "src:src.ac1", kind: "i", el: "src.ac1" }, { id: "src:src.ac2", kind: "i", el: "src.ac2" });
     if (degree.get("tr:ac.a") || degree.get("tr:ac.b")) activeFreqs.push(AC_FREQ);
   }
   // potentiometers VR1..VR4 (wiper position 0 => at A)
@@ -269,11 +319,11 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
   els.push({ t: "R", id: "spk", a: T("spk.p"), b: T("spk.n"), r: 8 });
   // built-in meters
   els.push({ t: "R", id: "dvm.r", a: T("dvm.v"), b: T("dvm.com"), r: 10e6 });
-  els.push({ t: "AM", id: "dvm.am", a: T("dvm.a"), b: T("dvm.com") });
+  els.push({ t: "AM", id: "dvm.am", a: T("dvm.a"), b: T("dvm.com"), r: 1 });
   els.push({ t: "R", id: "m1.r", a: T("m1.p"), b: T("m1.n"), r: 600e3 });
-  els.push({ t: "AM", id: "m2.am", a: T("m2.p"), b: T("m2.n") });
+  els.push({ t: "AM", id: "m2.am", a: T("m2.p"), b: T("m2.n"), r: 2.2 });
   els.push({ t: "R", id: "m3.r", a: T("m3.p"), b: T("m3.n"), r: 150e3 });
-  els.push({ t: "AM", id: "m4.am", a: T("m4.p"), b: T("m4.n") });
+  els.push({ t: "AM", id: "m4.am", a: T("m4.p"), b: T("m4.n"), r: 2.2 });
   probes.push(
     { id: "dvm.v", kind: "v", a: T("dvm.v"), b: T("dvm.com") },
     { id: "dvm.a", kind: "i", el: "dvm.am" },
@@ -281,6 +331,7 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
     { id: "m2", kind: "i", el: "m2.am" },
     { id: "m3", kind: "v", a: T("m3.p"), b: T("m3.n") },
     { id: "m4", kind: "i", el: "m4.am" },
+    { id: "spk", kind: "v", a: T("spk.p"), b: T("spk.n") },
   );
 
   // ---------------- module + custom parts ----------------
@@ -290,6 +341,7 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
     return nodeOf(pin.includes(":") ? pin : `${prefix}${pin}`);
   };
   const addPart = (p: PartDef, prefix: string, gid: string) => {
+    if (damaged.has(gid)) return; // burnt-out part = open circuit
     const n = p.pins.map((pin) => pinNode(pin, prefix));
     switch (p.kind) {
       case "R":
@@ -340,7 +392,12 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
       }
       case "OA": {
         const m = OPAMPS[p.model ?? "UA741"];
-        els.push({ t: "OA", id: gid, inn: n[0], inp: n[1], out: n[2], vcc: n[3], vee: n[4], m });
+        // two-stage macromodel: finite gain-bandwidth and slew rate
+        const mm = opampMacro(m);
+        const nInt = internal();
+        els.push({ t: "R", id: `${gid}.rint`, a: nInt, b: 0, r: mm.rint });
+        els.push({ t: "C", id: `${gid}.cc`, a: nInt, b: 0, c: mm.cc });
+        els.push({ t: "OA", id: gid, inn: n[0], inp: n[1], out: n[2], vcc: n[3], vee: n[4], int: nInt, m });
         break;
       }
     }
@@ -363,7 +420,7 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
       break;
     case "dca":
     case "aca":
-      els.push({ t: "AM", id: "dmm.am", a: dv, b: dc });
+      els.push({ t: "AM", id: "dmm.am", a: dv, b: dc, r: 4.7 }); // mA-range shunt (burden)
       probes.push({ id: "dmm", kind: "i", el: "dmm.am" });
       break;
     case "ohm":
@@ -376,10 +433,33 @@ export function buildCircuit(s: Snapshot): BuiltCircuit {
       break;
   }
 
-  const { circuit, probes: pr, tau, reactive } = prune({ nodeCount: next, elements: els }, probes);
+  // nodes the student touched (cords, clips, instrument leads)
+  const userNodes = new Set<number>();
+  for (const w of s.wires) {
+    userNodes.add(nodeOf(w.a));
+    userNodes.add(nodeOf(w.b));
+  }
+  for (const [lead, jack] of Object.entries(s.leads)) if (jack) userNodes.add(nodeOf(lead));
+  for (const p of s.customParts as CustomPart[]) for (const g of p.gpins) userNodes.add(nodeOf(g));
+  const { circuit, probes: pr, tau, reactive, map } = prune({ nodeCount: next, elements: els }, probes, userNodes);
   hasReactive = reactive;
-  const key = JSON.stringify([s.moduleId, s.wires.map((w) => [w.a, w.b]), s.leads, s.knobs, s.power, s.dmmMode, s.customParts.map((p) => [p.kind, p.value, p.model, p.gpins])]);
-  return { circuit, probes: pr, nodeOf, activeFreqs, ledIds, hasReactive, tau, key };
+  const key = JSON.stringify([
+    s.moduleId,
+    s.wires.map((w) => [w.a, w.b]),
+    s.leads,
+    s.knobs,
+    s.power,
+    s.dmmMode,
+    s.customParts.map((p) => [p.kind, p.value, p.model, p.gpins]),
+    [...damaged],
+    [...limited],
+  ]);
+  const nodeIndex = (id: string) => {
+    const n0 = nodeOf(id);
+    if (n0 === 0) return 0;
+    return map.get(n0) ?? -1;
+  };
+  return { circuit, probes: pr, nodeOf, nodeIndex, activeFreqs, ledIds, hasReactive, tau, key };
 }
 
 /** choose settle / capture windows and steps for the transient run */
@@ -397,9 +477,10 @@ export function planTiming(b: BuiltCircuit, tdiv: number) {
   let dt = Math.min(1 / (fmax * 400), W / 1500);
   const MAX_CAP_STEPS = 90000;
   if (capture / dt > MAX_CAP_STEPS) dt = capture / MAX_CAP_STEPS;
-  let settle = b.hasReactive ? Math.min(Math.max(6 * T, 4 * b.tau), 0.25) : 2 * T;
+  // reach steady state: several time constants (bounded by a step budget)
+  let settle = b.hasReactive ? Math.min(Math.max(6 * T, 6 * b.tau), 1.0) : 2 * T;
   const dtSettle = Math.max(dt, 1 / (fmax * 80));
-  settle = Math.min(settle, 40000 * dtSettle);
+  settle = Math.min(settle, 60000 * dtSettle);
   settle = Math.ceil(settle / T) * T; // keep phase aligned
   return { tStop: settle + capture, tCapture: settle, dtMax: dt, dtSettle };
 }

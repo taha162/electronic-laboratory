@@ -15,6 +15,8 @@ export function Dock() {
   const power = useBench((s) => s.power);
   const moduleId = useBench((s) => s.moduleId);
   const nWires = useBench((s) => s.wires.length);
+  const canUndo = useBench((s) => s.past.length > 0);
+  const canRedo = useBench((s) => s.future.length > 0);
   const st = useBench.getState();
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3">
@@ -31,6 +33,12 @@ export function Dock() {
           ))}
         </div>
         <span className="h-6 w-px bg-white/10" />
+        <button className="btn !px-2" disabled={!canUndo} onClick={() => st.undo()} title={`${t("undo")} (Ctrl+Z)`} style={{ opacity: canUndo ? 1 : 0.4 }}>
+          ↶
+        </button>
+        <button className="btn !px-2" disabled={!canRedo} onClick={() => st.redo()} title={`${t("redo")} (Ctrl+Y)`} style={{ opacity: canRedo ? 1 : 0.4 }}>
+          ↷
+        </button>
         <button className="btn" disabled={!nWires} onClick={() => st.clearWires()} title={t("clearAll")}>
           ✕ {nWires}
         </button>
@@ -46,13 +54,23 @@ export function Dock() {
           ))}
         </select>
         <span className="h-6 w-px bg-white/10" />
-        <div className="flex items-center gap-1">
+        <div className="hidden items-center gap-1 lg:flex">
           {VIEWS.map((v) => (
             <button key={v} className="btn !px-2" onClick={() => useUi.getState().cam(v)}>
               {t(`v_${v}` as "v_seat")}
             </button>
           ))}
         </div>
+        <select className="lg:hidden" defaultValue="" onChange={(e) => e.target.value && useUi.getState().cam(e.target.value)} title={t("views")}>
+          <option value="" disabled>
+            👁 {t("views")}
+          </option>
+          {VIEWS.map((v) => (
+            <option key={v} value={v}>
+              {t(`v_${v}` as "v_seat")}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 import { useBench } from "@/store/bench";
 import { EXPERIMENT_BY_ID } from "@/lab/experiments";
 import { useT } from "./i18n";
+import { useUi } from "@/three/registry";
 
 export function TopBar() {
   const { t, lang } = useT();
@@ -10,13 +11,15 @@ export function TopBar() {
   const quality = useBench((s) => s.quality);
   const expId = useBench((s) => s.experimentId);
   const step = useBench((s) => s.step);
+  const sound = useBench((s) => s.sound);
+  const insight = useUi((s) => s.insight);
   const st = useBench.getState();
   const exp = expId ? EXPERIMENT_BY_ID[expId] : null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-3">
-      <div className="glass pointer-events-auto flex items-center gap-3 rounded-xl px-3 py-2">
+    <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 p-2 sm:p-3">
+      <div className="glass pointer-events-auto flex max-w-full items-center gap-2 rounded-xl px-2.5 py-2 sm:gap-3 sm:px-3">
         <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--color-accent)] text-[13px] font-bold text-black">KL</div>
-        <div className="leading-tight">
+        <div className="hidden leading-tight sm:block">
           <div className="text-sm font-semibold">{t("appTitle")}</div>
           <div className="text-[11px] text-[var(--color-mute)]">
             {exp ? `${lang === "ar" ? "التجربة" : "Exp."} ${exp.no} · ${exp.title[lang]} · ${t("step")} ${step + 1}/${exp.steps.length}` : t("appSub")}
@@ -30,12 +33,21 @@ export function TopBar() {
           ))}
         </div>
       </div>
-      <div className="glass pointer-events-auto flex items-center gap-1.5 rounded-xl px-2 py-1.5">
+      <div className="glass scroll-thin pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-xl px-2 py-1.5">
         <button className="btn" data-on={panel === "experiment"} onClick={() => st.setPanel("experiment")}>
-          ⚗ {t("experiments")}
+          ⚗ <span className="hidden sm:inline">{t("experiments")}</span>
         </button>
         <button className="btn" data-on={panel === "saves"} onClick={() => st.setPanel("saves")}>
-          ⤓ {t("saves")}
+          ⤓ <span className="hidden sm:inline">{t("saves")}</span>
+        </button>
+        <button className="btn" data-on={insight} title={t("insightTip")} onClick={() => useUi.getState().setInsight(!insight)}>
+          ⚛ <span className="hidden lg:inline">{t("insight")}</span>
+        </button>
+        <button className="btn" data-on={sound} title={t("sound")} onClick={() => st.setSound(!sound)}>
+          {sound ? "🔊" : "🔇"}
+        </button>
+        <button className="btn" title={t("photo")} onClick={() => useUi.getState().setPhoto(true)}>
+          📷
         </button>
         <button className="btn" data-on={panel === "help"} onClick={() => st.setPanel("help")}>
           ?

@@ -23,24 +23,32 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 * **Experiments** – Exp. 1–6 of the 2026-2027 manual (diode test & characteristics, clippers & clampers, rectifiers, BJT characteristics, CE amplifiers, CB / switch / cascade) plus RC/RLC and op-amp circuits. Each step has instructions in Arabic and English, a “show me” auto-wiring, an electrical **wiring checker**, results tables you can fill with live readings, and plots.
 * **Custom circuits** – insert the universal breadboard module and place resistors, capacitors, inductors, diodes, Zeners, LEDs and transistors from the parts tray.
 * **Save** – the bench, instrument settings and result tables persist in the browser; named saves can be exported/imported as JSON.
+* **Real consequences** – supplies fold back into current limit on a short (the DC meter collapses to 0 V); a part dissipating above its rating smokes and, if left, burns out (open circuit, scorch mark) until you press *Replace*.
+* **Hear it** – wire a signal to the trainer's SPEAKER sockets and you hear the simulated voltage (clipping, rectification… all audible). Plugs, clips, knobs, switches and the scope have synthesised foley; the room has its fluorescent-ballast and transformer hum.
+* **Beyond reality** – *X-ray* shows the live voltage of every connected node and colours cords by potential; *Guide me* puts a pulsing ring and arrow on the exact sockets of the next connection with a ghost cord; Ctrl+Z / Ctrl+Y undo/redo the wiring.
+* **Photo mode** – hides the UI, adds a camera-like depth of field (auto-focus on what you orbit) and film grain, and captures a PNG.
 
 ## Architecture
 
 ```
 src/sim/            MNA circuit solver (pure TypeScript, runs in a Web Worker)
   solver.ts         Newton-Raphson + SPICE-style junction limiting, trapezoidal/BE companion
-                    models, DC operating point with gmin/source stepping
+                    models, DC operating point with gmin/source stepping, two-stage op-amp
+                    macromodel (GBW 1 MHz, slew 0.5 V/µs), per-node and per-part power statistics
   models.ts         1N4001/1N4148/1N34A/Zener/LED, 2N3904/C1815/2N2904/2N3906, uA741
   measure.ts        DSO-style measurements
 src/lab/
   trainer.ts        KL-21001 panel layout (mm): jacks, knobs, meters, sources
   modules/          experiment boards as data (sockets, printed traces, parts)
-  netlist.ts        bench → circuit (union-find of traces / cords / leads, island pruning)
+  netlist.ts        bench → circuit (union-find of traces / cords / leads), partitioning into
+                    independent sub-circuits so only what you wired is solved
   simController.ts  schedules simulations, derives meter readings
   experiments.ts    experiment steps, reference wiring, result tables
 src/scope/          FNIRSI screen renderer, trigger/acquisition, AUTO SET
 src/three/          React-Three-Fiber scene: room, trainer, module plate, scope, DMM,
-                    cables, camera rig; procedural canvas textures for all artwork
+                    cables, camera rig; procedural canvas textures and PBR maps (fBm normal /
+                    roughness) for all artwork; AgX tone mapping, N8AO, soft VSM shadows
+src/audio/          Web Audio foley, ambience and the simulated loudspeaker
 src/ui/             floating UI (Arabic RTL / English)
 ```
 

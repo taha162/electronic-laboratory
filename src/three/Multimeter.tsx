@@ -1,10 +1,11 @@
 "use client";
 import * as THREE from "three";
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import { useBench, type DmmMode } from "@/store/bench";
-import { useSim } from "@/lab/simController";
+import { useSim, formatDmm } from "@/lab/simController";
+import { sfx } from "@/audio/audio";
 import { MAT, plastic } from "./materials";
 import { canvas, draw7seg, toTexture } from "./draw/textures";
 import { registerAnchor, unregisterAnchor, useUi } from "./registry";
@@ -25,8 +26,14 @@ function faceTexture() {
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "center";
   ctx.fillText("DIGITAL MULTIMETER", 256, 345);
+  ctx.fillStyle = "#ffd200";
+  ctx.font = "bold italic 34px Arial";
+  ctx.fillText("Pro'sKit", 150, 410);
+  ctx.fillStyle = "#e8e8e8";
+  ctx.font = "bold 26px Arial";
+  ctx.fillText("MT-1232", 360, 410);
   ctx.font = "22px Arial";
-  ctx.fillText("AUTO RANGE  TRUE RMS", 256, 378);
+  ctx.fillText("AUTO RANGE · TRUE RMS · 4000 COUNTS", 256, 378);
   // dial legends
   const cx = 256,
     cy = 600;
@@ -68,13 +75,35 @@ export function Multimeter() {
     return { lcd: toTexture(c), ctx: c.getContext("2d")!, c };
   }, []);
   const last = useRef("");
-  useFrame(() => {
-    const r = useSim.getState().readings.dmm;
+  // a real DMM samples ~3 times per second and the last digit flickers
+  const disp = useRef({ t: 0, text: "", unit: "", hold: false, light: false });
+  const [hold, setHold] = useState(false);
+  const [light, setLight] = useState(false);
+  disp.current.hold = hold;
+  disp.current.light = light;
+  useFrame(({ clock }) => {
+    const now = clock.elapsedTime;
+    const D = disp.current;
     const m = useBench.getState().dmmMode;
-    const key = `${m}|${r.text}|${r.unit}`;
+    if (now - D.t > 0.33 && !D.hold) {
+      D.t = now;
+      const r = useSim.getState().readings.dmm;
+      let v = r.value;
+      if (v !== null && m !== "off") {
+        // input noise / quantisation: about ±1 count
+        const f0 = formatDmm(m, v);
+        const dec = (f0.text.split(".")[1] ?? "").length;
+        const lsd = Math.pow(10, -dec) * (f0.unit === "mV" ? 1e-3 : f0.unit === "kΩ" ? 1e3 : f0.unit === "MΩ" ? 1e6 : 1);
+        v = v + (Math.random() - 0.5) * 1.6 * lsd;
+      }
+      const f = formatDmm(m, v);
+      D.text = f.text;
+      D.unit = f.unit;
+    }
+    const key = `${m}|${D.text}|${D.unit}|${D.hold}|${D.light}`;
     if (key === last.current) return;
     last.current = key;
-    ctx.fillStyle = "#9ba98f";
+    ctx.fillStyle = D.light ? "#8fd7a4" : "#9ba98f";
     ctx.fillRect(0, 0, c.width, c.height);
     const g = ctx.createLinearGradient(0, 0, 0, c.height);
     g.addColorStop(0, "rgba(255,255,255,0.12)");
@@ -82,18 +111,24 @@ export function Multimeter() {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, c.width, c.height);
     if (m !== "off") {
-      draw7seg(ctx, r.text === "OL" ? " OL" : r.text, 46, 46, 120, "#15170f", "rgba(0,0,0,0.05)", 4);
+      draw7seg(ctx, D.text === "OL" ? " OL" : D.text.replace("-", "-"), 46, 46, 120, "#15170f", "rgba(0,0,0,0.05)", 4);
       ctx.fillStyle = "#15170f";
       ctx.font = "bold 30px Arial";
       ctx.textAlign = "right";
-      ctx.fillText(r.unit, 388, 196);
+      ctx.fillText(D.unit, 388, 196);
       ctx.textAlign = "left";
       ctx.font = "bold 20px Arial";
-      ctx.fillText(m === "acv" || m === "aca" ? "AC" : m === "ohm" ? "" : m === "diode" ? "" : "DC", 14, 30);
+      ctx.fillText(m === "acv" || m === "aca" ? "AC" : m === "ohm" || m === "diode" ? "" : "DC", 14, 30);
       ctx.fillText("AUTO", 70, 30);
+      if (m === "diode") ctx.fillText("▶|  •))", 150, 30);
+      if (D.hold) ctx.fillText("H", 360, 30);
+      // battery & bar-graph segment row
+      ctx.fillRect(14, 190, 8, 2);
     }
     lcd.needsUpdate = true;
+    lcdMat.emissiveIntensity = D.light ? 0.9 : 0.2;
   });
+  const lcdMat = useMemo(() => new THREE.MeshStandardMaterial({ map: lcd, roughness: 0.3, emissiveMap: lcd, emissive: new THREE.Color("#ffffff"), emissiveIntensity: 0.2 }), [lcd]);
   useLayoutEffect(() => {
     const g = body.current;
     if (!g) return;
@@ -120,10 +155,37 @@ export function Multimeter() {
           <meshStandardMaterial map={face} roughness={0.6} />
         </mesh>
         {/* LCD */}
-        <mesh position={[0, 0.0196, -0.044]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh position={[0, 0.0196, -0.044]} rotation={[-Math.PI / 2, 0, 0]} material={lcdMat}>
           <planeGeometry args={[0.052, 0.0286]} />
-          <meshStandardMaterial map={lcd} roughness={0.3} emissiveMap={lcd} emissive="#ffffff" emissiveIntensity={0.25} />
         </mesh>
+        {/* function buttons: HOLD and backlight */}
+        {[
+          { x: -0.02, label: "HOLD", on: hold, act: () => setHold((h) => !h) },
+          { x: 0.02, label: "LIGHT", on: light, act: () => setLight((l) => !l) },
+        ].map((b) => (
+          <group key={b.label} position={[b.x, 0.0195, -0.0215]}>
+            <RoundedBox
+              args={[0.016, 0.004, 0.0075]}
+              radius={0.0015}
+              position={[0, b.on ? 0.0008 : 0.0015, 0]}
+              material={b.label === "HOLD" ? MAT.blackPlastic() : plastic("#e0b21a")}
+              onClick={(e) => {
+                e.stopPropagation();
+                b.act();
+                sfx("button");
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                useUi.getState().setHover({ id: "dmm.btn", label: b.label });
+                document.body.style.cursor = "pointer";
+              }}
+              onPointerOut={() => {
+                useUi.getState().setHover(null);
+                document.body.style.cursor = "auto";
+              }}
+            />
+          </group>
+        ))}
         <mesh position={[0, 0.0199, -0.044]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.glass()}>
           <planeGeometry args={[0.054, 0.03]} />
         </mesh>

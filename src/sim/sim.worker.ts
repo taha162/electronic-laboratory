@@ -22,9 +22,11 @@ function run() {
       data: {},
       op: {},
       stats: { steps: 0, iterations: 0, ms: 0, nodes: 0, unknowns: 0 },
+      nodeStats: new Float64Array(0),
+      power: {},
     };
   }
-  const transfer: Transferable[] = [res.t.buffer as ArrayBuffer];
+  const transfer: Transferable[] = [res.t.buffer as ArrayBuffer, res.nodeStats.buffer as ArrayBuffer];
   for (const k in res.data) transfer.push(res.data[k].buffer as ArrayBuffer);
   (self as unknown as Worker).postMessage(res, transfer);
 }

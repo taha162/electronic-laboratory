@@ -18,6 +18,7 @@ import type {
   Waveform,
   DiodeModel,
 } from "./types";
+import { opampMacro } from "./models";
 
 const VT = 0.025852; // thermal voltage @ 27C
 const GMIN = 1e-12;
@@ -147,6 +148,8 @@ export class MnaSolver {
   iterations = 0;
   /** set during assemble when a junction voltage had to be limited */
   private limited = false;
+  /** Newton iteration index within the current solve */
+  private iterInNewton = 0;
 
   constructor(c: Circuit) {
     this.els = c.elements;
@@ -284,7 +287,7 @@ export class MnaSolver {
           this.stampAt(k, e.b, -1);
           if (e.a) this.A[(e.a - 1) * n + k] += 1;
           if (e.b) this.A[(e.b - 1) * n + k] -= 1;
-          this.A[k * n + k] -= 1e-3; // 1 mOhm shunt
+          this.A[k * n + k] -= e.r ?? 1e-3; // shunt (burden) resistance
           break;
         }
         case "I": {
@@ -363,14 +366,82 @@ export class MnaSolver {
           const veeV = e.vee != null ? this.nv(x, e.vee) : -15;
           const hi = vccV - e.m.headroom;
           const lo = veeV + e.m.headroom;
-          rail = hi > lo ? [lo, hi] : [0, 0];
+          if (hi > lo) rail = [lo, hi];
+          // supplies not solved yet on the very first Newton iteration: assume nominal rails
+          else rail = this.iterInNewton === 0 && !this.rails.has(e.id) ? [-13.5, 13.5] : [0, 0];
           this.rails.set(e.id, rail);
           const mid = (rail[0] + rail[1]) / 2;
           const half = Math.max((rail[1] - rail[0]) / 2, 1e-6);
+          const st = this.getJ(e.id, 1);
+          if (e.int != null) {
+            // ---- two-stage macromodel: gm stage (slew-limited) -> Cc/Rint -> output buffer
+            const mm = opampMacro(e.m);
+            // Newton limiting of the (tanh) input stage: walk through the linear region
+            const stg = this.getJ(e.id + "#g", 1);
+            let u = (mm.gm * vdRaw) / mm.imax;
+            const uOld = stg[0];
+            if (Math.sign(u) !== Math.sign(uOld) && Math.abs(uOld) > 2 && Math.abs(u) > 2) {
+              u = 0;
+              this.limited = true;
+            } else if (Math.abs(uOld) < 3 && Math.abs(u - uOld) > 2.5) {
+              u = uOld + Math.sign(u - uOld) * 2.5;
+              this.limited = true;
+            }
+            stg[0] = u;
+            const vdL = (u * mm.imax) / mm.gm;
+            const thg = Math.tanh(u);
+            const iIn = mm.imax * thg;
+            const gIn = mm.gm * (1 - thg * thg) + 1e-15;
+            // current injected into the internal node: iIn + gIn*(vd - vd0)
+            if (e.int) {
+              this.rhs[e.int - 1] += iIn - gIn * vdL;
+              this.stampAt(e.int - 1, e.inp, -gIn);
+              this.stampAt(e.int - 1, e.inn, gIn);
+            }
+            // internal node clamp (a real op-amp's second stage cannot swing beyond its rails;
+            // this also gives microsecond saturation recovery)
+            const vInt = this.nv(x, e.int);
+            if (e.int) {
+              const top = mid + 1.6 * half + 0.3,
+                bot = mid - 1.6 * half - 0.3;
+              const Gc = 1e-3,
+                sw = 0.05;
+              const sp = (z: number) => (z > 30 ? z : Math.log1p(Math.exp(z)));
+              const sg = (z: number) => 1 / (1 + Math.exp(-z));
+              const ic = Gc * sw * (sp((vInt - top) / sw) - sp((bot - vInt) / sw));
+              const gc = Gc * (sg((vInt - top) / sw) + sg((bot - vInt) / sw)) + 1e-15;
+              this.A[(e.int - 1) * n + (e.int - 1)] += gc;
+              this.rhs[e.int - 1] -= ic - gc * vInt;
+            }
+            // output buffer: linear between the rails with a sharp soft knee
+            let arg = (vInt - mid) / half;
+            const argOld = st[0];
+            if (Math.sign(arg) !== Math.sign(argOld) && Math.abs(argOld) > 1.5 && Math.abs(arg) > 1.5) {
+              arg = 0;
+              this.limited = true;
+            } else if (Math.abs(argOld) < 3 && Math.abs(arg - argOld) > 2) {
+              arg = argOld + Math.sign(arg - argOld) * 2;
+              this.limited = true;
+            }
+            st[0] = arg;
+            const vIntL = mid + arg * half;
+            const P = 8;
+            const q = 1 + Math.pow(Math.abs(arg), P);
+            const sc = arg / Math.pow(q, 1 / P);
+            const f = mid + half * sc;
+            const fp = Math.pow(q, -(P + 1) / P) + 1e-9;
+            // Vout - Rout*i - fp*vInt = f - fp*vIntL
+            this.stampAt(k, e.out, 1);
+            this.stampAt(k, e.int, -fp);
+            this.A[k * n + k] -= e.m.rout;
+            if (e.out) this.A[(e.out - 1) * n + k] += 1;
+            this.rhs[k] = f - fp * vIntL;
+            break;
+          }
+          // ---- single-stage model
           // Newton limiting for the saturating output (like pnjlim for junctions):
           // re-enter the linear region from the centre when flipping rails, and
           // leave it gradually.
-          const st = this.getJ(e.id, 1);
           let arg = (e.m.gain * vdRaw) / half;
           const argOld = st[0];
           if (Math.sign(arg) !== Math.sign(argOld) && Math.abs(argOld) > 1.5 && Math.abs(arg) > 1.5) {
@@ -403,6 +474,7 @@ export class MnaSolver {
     for (let it = 0; it < maxIt; it++) {
       this.iterations++;
       this.limited = false;
+      this.iterInNewton = it;
       this.assemble(this.x, t, dt, mode, srcScale, gminExtra);
       if (!solveDense(this.A, this.rhs, n, this.xNew)) return false;
       let conv = true;
@@ -464,23 +536,30 @@ export class MnaSolver {
     return true;
   }
 
+  private xSave: Float64Array | null = null;
   /**
    * advance one transient step from t to t+dt; returns success.
    * `useTrap` selects trapezoidal integration; backward Euler is used after
    * discontinuities to suppress trapezoidal ringing.
    */
   step(t: number, dt: number, useTrap = true): boolean {
-    const save = this.x.slice();
-    const jsave = new Map<string, number[]>();
-    for (const [k, v] of this.junc) jsave.set(k, v.slice());
+    if (!this.xSave) this.xSave = new Float64Array(this.n);
+    this.xSave.set(this.x);
+    // junction states are small arrays; snapshot only their values
+    const jvals: number[][] = [];
+    for (const v of this.junc.values()) jvals.push(v.slice());
     this.trap = useTrap;
     if (this.newton(t + dt, dt, "tran")) {
       this.commitTran(dt);
       return true;
     }
     // subdivide with backward Euler
-    this.x.set(save);
-    this.junc = jsave;
+    this.x.set(this.xSave);
+    let ji = 0;
+    for (const v of this.junc.values()) {
+      const sv = jvals[ji++];
+      if (sv) for (let q = 0; q < v.length; q++) v[q] = sv[q];
+    }
     this.trap = false;
     const sub = 10;
     const h = dt / sub;
@@ -559,6 +638,40 @@ export class MnaSolver {
     }
   }
 
+  /** instantaneous power dissipated in a component (W) */
+  elementPower(e: Element): number {
+    const x = this.x;
+    switch (e.t) {
+      case "R": {
+        const v = this.nv(x, e.a) - this.nv(x, e.b);
+        return (v * v) / e.r;
+      }
+      case "D": {
+        const v = this.nv(x, e.a) - this.nv(x, e.k);
+        return Math.abs(v * diodeEval(v, e.m).i);
+      }
+      case "Q": {
+        const s = e.m.polarity;
+        const vb = this.nv(x, e.b),
+          vc = this.nv(x, e.c),
+          ve = this.nv(x, e.e);
+        const vbe = s * (vb - ve),
+          vbc = s * (vb - vc);
+        const If = e.m.is * (sexp(vbe / (e.m.nf * VT)) - 1);
+        const Ir = e.m.is * (sexp(vbc / (e.m.nr * VT)) - 1);
+        const ic = (If - Ir) * Math.max(1 - vbc / e.m.vaf, 0.05) - Ir / e.m.br;
+        const ib = If / e.m.bf + Ir / e.m.br;
+        return Math.abs((vbe - vbc) * ic + vbe * ib);
+      }
+      default:
+        return 0;
+    }
+  }
+
+  nodeVoltage(i: number) {
+    return this.nv(this.x, i);
+  }
+
   private elCache: Map<string, Element> | null = null;
   private elById(id: string) {
     if (!this.elCache) {
@@ -580,7 +693,11 @@ export function runSimulation(req: SimRequest): SimResult {
     data: {},
     op: {},
     stats: { steps: 0, iterations: 0, ms: 0, nodes: solver.nodes, unknowns: solver.n },
+    nodeStats: new Float64Array(0),
+    power: {},
   };
+  const watched = req.circuit.elements.filter((e) => (e.id.startsWith("m.") || e.id.startsWith("u.")) && (e.t === "R" || e.t === "D" || e.t === "Q"));
+  const N = req.circuit.nodeCount;
   if (!solver.operatingPoint(0)) {
     return { ...empty, message: "DC operating point did not converge" };
   }
@@ -591,6 +708,13 @@ export function runSimulation(req: SimRequest): SimResult {
     const data: Record<string, Float64Array> = {};
     for (const p of req.probes) data[p.id] = Float64Array.of(op[p.id], op[p.id]);
     const ms = (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
+    const nodeStats = new Float64Array(N * 4);
+    for (let i = 1; i < N; i++) {
+      const v = solver.nodeVoltage(i);
+      nodeStats.set([v, v, v, Math.abs(v)], i * 4);
+    }
+    const power: Record<string, number> = {};
+    for (const e of watched) power[e.id] = solver.elementPower(e);
     return {
       seq: req.seq,
       ok: true,
@@ -598,6 +722,8 @@ export function runSimulation(req: SimRequest): SimResult {
       data,
       op,
       stats: { steps: 0, iterations: solver.iterations, ms, nodes: solver.nodes, unknowns: solver.n },
+      nodeStats,
+      power,
     };
   }
 
@@ -614,6 +740,12 @@ export function runSimulation(req: SimRequest): SimResult {
   for (const p of req.probes) data[p.id] = new Float64Array(nPts);
   let idx = 0;
   let t = 0;
+  const nSum = new Float64Array(N),
+    nSq = new Float64Array(N),
+    nMin = new Float64Array(N).fill(Infinity),
+    nMax = new Float64Array(N).fill(-Infinity);
+  const pSum = new Float64Array(watched.length);
+  let nCap = 0;
   let beSteps = 2; // start-up with backward Euler
   for (let s = 0; s < steps; s++) {
     const h = s < settleSteps ? dtS2 : dt;
@@ -626,6 +758,15 @@ export function runSimulation(req: SimRequest): SimResult {
     }
     t += h;
     if (s >= settleSteps) {
+      nCap++;
+      for (let i = 1; i < N; i++) {
+        const v = solver.nodeVoltage(i);
+        nSum[i] += v;
+        nSq[i] += v * v;
+        if (v < nMin[i]) nMin[i] = v;
+        if (v > nMax[i]) nMax[i] = v;
+      }
+      for (let k = 0; k < watched.length; k++) pSum[k] += solver.elementPower(watched[k]);
       const ci = s - settleSteps;
       if (ci % stride === 0 && idx < nPts) {
         tArr[idx] = t - req.tCapture;
@@ -637,6 +778,13 @@ export function runSimulation(req: SimRequest): SimResult {
   const ms = (typeof performance !== "undefined" ? performance.now() : Date.now()) - t0;
   const tt = tArr.subarray(0, idx);
   for (const k in data) data[k] = data[k].subarray(0, idx);
+  const nodeStats = new Float64Array(N * 4);
+  for (let i = 1; i < N; i++) {
+    const c = Math.max(nCap, 1);
+    nodeStats.set([nSum[i] / c, nMin[i], nMax[i], Math.sqrt(nSq[i] / c)], i * 4);
+  }
+  const power: Record<string, number> = {};
+  watched.forEach((e, k) => (power[e.id] = pSum[k] / Math.max(nCap, 1)));
   return {
     seq: req.seq,
     ok: true,
@@ -644,5 +792,7 @@ export function runSimulation(req: SimRequest): SimResult {
     data,
     op,
     stats: { steps, iterations: solver.iterations, ms, nodes: solver.nodes, unknowns: solver.n },
+    nodeStats,
+    power,
   };
 }

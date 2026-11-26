@@ -35,6 +35,8 @@ export function applyStep(module: string, step: StepDef) {
 export interface CheckResult {
   ok: boolean;
   missing: string[];
+  /** missing connections as socket pairs (lead ids for instrument leads) */
+  pairs: [string, string][];
 }
 
 function jackLabel(id: string, module: string): string {
@@ -65,18 +67,25 @@ function jackLabel(id: string, module: string): string {
 /** Electrically compare the bench with the step's reference connections. */
 export function checkStep(module: string, step: StepDef): CheckResult {
   const s = useBench.getState();
-  if (s.moduleId !== module) return { ok: false, missing: [`module ${getModule(module).code}`] };
+  if (s.moduleId !== module) return { ok: false, missing: [`module ${getModule(module).code}`], pairs: [] };
   const built = buildCircuit(snapshotOf(s));
   const missing: string[] = [];
+  const pairs: [string, string][] = [];
   for (const [a, b] of step.wires ?? []) {
-    if (built.nodeOf(a) !== built.nodeOf(b)) missing.push(`${jackLabel(a, module)} ↔ ${jackLabel(b, module)}`);
+    if (built.nodeOf(a) !== built.nodeOf(b)) {
+      missing.push(`${jackLabel(a, module)} ↔ ${jackLabel(b, module)}`);
+      pairs.push([a, b]);
+    }
   }
   for (const [lead, jack] of Object.entries(step.leads ?? {})) {
     if (!jack) continue;
-    if (built.nodeOf(lead) !== built.nodeOf(jack)) missing.push(`${jackLabel(lead, module)} → ${jackLabel(jack, module)}`);
+    if (built.nodeOf(lead) !== built.nodeOf(jack)) {
+      missing.push(`${jackLabel(lead, module)} → ${jackLabel(jack, module)}`);
+      pairs.push([lead, jack]);
+    }
   }
   if (step.dmmMode && s.dmmMode !== step.dmmMode) missing.push(`multimeter function: ${step.dmmMode.toUpperCase()}`);
-  return { ok: missing.length === 0, missing };
+  return { ok: missing.length === 0, missing, pairs };
 }
 
 export { jackLabel };

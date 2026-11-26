@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useBench } from "@/store/bench";
-import { useSim } from "@/lab/simController";
+import { useSim, jackVoltage } from "@/lab/simController";
 import { jackLabel } from "@/lab/experimentActions";
 import { fmtEng } from "@/sim/measure";
 import { useUi } from "@/three/registry";
@@ -18,7 +18,15 @@ export function HoverTip() {
   }, []);
   if (!hover) return null;
   let label = hover.label;
-  if (hover.id.startsWith("tr:") || hover.id.startsWith("m:")) label = jackLabel(hover.id, moduleId);
+  let volt: string | null = null;
+  if (hover.id.startsWith("tr:") || hover.id.startsWith("m:")) {
+    label = jackLabel(hover.id, moduleId);
+    const v = jackVoltage(hover.id);
+    if (v) {
+      const pp = v.max - v.min;
+      volt = `${fmtEng(v.mean, "V")} DC${pp > 0.05 ? ` · ${fmtEng(pp, "V")}pp` : ""}`;
+    }
+  }
   if (hover.id.startsWith("lead:")) label = jackLabel(hover.id.slice(5), moduleId);
   if (hover.id.startsWith("knob:")) {
     const k = hover.id.slice(5);
@@ -28,6 +36,7 @@ export function HoverTip() {
   return (
     <div className="glass pointer-events-none fixed z-50 rounded-md px-2 py-1 font-mono text-[11px]" style={{ left: pos.x + 14, top: pos.y + 14 }} dir="ltr">
       {label}
+      {volt && useUi.getState().insight && <div className="text-[var(--color-accent)]">{volt}</div>}
     </div>
   );
 }
@@ -96,5 +105,9 @@ export function Toast() {
     return () => clearTimeout(id);
   }, [toast]);
   if (!toast || !visible) return null;
-  return <div className="glass absolute start-1/2 top-20 -translate-x-1/2 rounded-full px-4 py-2 text-sm rtl:translate-x-1/2">{toast.text}</div>;
+  return (
+    <div className="glass pointer-events-none absolute start-1/2 bottom-[7.6rem] z-30 max-w-[90vw] -translate-x-1/2 rounded-full px-4 py-2 text-center text-sm rtl:translate-x-1/2">
+      {toast.text}
+    </div>
+  );
 }
