@@ -395,7 +395,7 @@ export const useBench = create<BenchState>()(
         }),
     }),
     {
-      name: "mosul-elab-bench-v2",
+      name: "mosul-elab-bench-v3",
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({
         moduleId: s.moduleId,

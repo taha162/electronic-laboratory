@@ -2,7 +2,7 @@
 import { create } from "zustand";
 import { useBench, SEQ_TDIV, SEQ_VDIV, type ScopeSettings } from "@/store/bench";
 import { useSim } from "@/lab/simController";
-import { acquire, renderScope, SCREEN_H, SCREEN_W, type ScopeFrame } from "./renderScope";
+import { acquire, DIV_X, KEYS, renderScope, SCREEN_H, SCREEN_W, type ScopeFrame } from "./renderScope";
 import type { SimResult } from "@/sim/types";
 
 /** UI-only scope state */
@@ -70,7 +70,7 @@ export function autoSet() {
     }) as ScopeSettings["ch"];
     const fs = [ms[0]?.freq ?? 0, ms[1]?.freq ?? 0].filter((f) => f > 0);
     let tdiv = s.tdiv;
-    if (fs.length) tdiv = nearest(SEQ_TDIV, 2.5 / Math.min(...fs) / 12);
+    if (fs.length) tdiv = nearest(SEQ_TDIV, 2.5 / Math.min(...fs) / DIV_X);
     const src: 0 | 1 = ms[0] && ms[0].vpp > 1e-3 ? 0 : 1;
     const m = ms[src];
     const level = m ? (ch[src].coupling === "AC" ? 0 : (m.max + m.min) / 2) : 0;
@@ -80,8 +80,8 @@ export function autoSet() {
 
 export function saveScreenshot() {
   const c = document.createElement("canvas");
-  c.width = SCREEN_W;
-  c.height = SCREEN_H;
+  c.width = SCREEN_W * 2;
+  c.height = SCREEN_H * 2;
   drawScopeTo(c.getContext("2d")!, performance.now() / 1000);
   const a = document.createElement("a");
   a.href = c.toDataURL("image/png");
@@ -101,12 +101,12 @@ export function saveWaveCsv() {
   a.click();
 }
 
-/** handle a touch on the scope screen (screen pixel coordinates) — returns true if consumed */
+/** handle a touch on the scope screen (native 800 x 480 pixel coordinates) — returns true if consumed */
 export function screenTouch(px: number, py: number): boolean {
   const st = useBench.getState();
   const ui = useScopeUi.getState();
-  if (px >= 906 && py >= 58 && py < 58 + 8 * 57) {
-    const k = Math.floor((py - 58) / 57);
+  if (px >= KEYS.x && py >= KEYS.y && py < KEYS.y + 8 * KEYS.pitch) {
+    const k = Math.floor((py - KEYS.y) / KEYS.pitch);
     ui.flash(k);
     switch (k) {
       case 0:
@@ -136,11 +136,11 @@ export function screenTouch(px: number, py: number): boolean {
     }
     return true;
   }
-  if (py < 50) {
-    if (px >= 222 && px < 400) st.setScope((s) => ({ ...s, ch: [{ ...s.ch[0], on: !s.ch[0].on }, s.ch[1]] }));
-    else if (px >= 402 && px < 580) st.setScope((s) => ({ ...s, ch: [s.ch[0], { ...s.ch[1], on: !s.ch[1].on }] }));
-    else if (px < 120) st.setPanel("scope");
-    else if (px >= 120 && px < 210) st.setScope((s) => ({ ...s, run: !s.run }));
+  if (py < 44) {
+    if (px >= 150 && px < 285) st.setScope((s) => ({ ...s, ch: [{ ...s.ch[0], on: !s.ch[0].on }, s.ch[1]] }));
+    else if (px >= 290 && px < 425) st.setScope((s) => ({ ...s, ch: [s.ch[0], { ...s.ch[1], on: !s.ch[1].on }] }));
+    else if (px < 90) st.setPanel("scope");
+    else if (px >= 90 && px < 145) st.setScope((s) => ({ ...s, run: !s.run }));
     else st.setPanel("scope");
     return true;
   }

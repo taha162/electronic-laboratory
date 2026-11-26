@@ -19,12 +19,13 @@ const UP = new THREE.Vector3(0, 1, 0);
 /* geometry helpers                                                   */
 /* ---------------------------------------------------------------- */
 /** KL-21001 footprint on the bench (world) — cables are draped over it */
-const TR = { x0: -0.29, x1: 0.35, z0: -0.3, z1: 0.162, cx: 0.03, cz: -0.07 };
+const TR = { x0: -0.285, x1: 0.345, z0: -0.318, z1: 0.178, front: 0.169, cx: 0.03, cz: -0.07 };
 function trainerTop(x: number, z: number): number | null {
   if (x < TR.x0 || x > TR.x1 || z < TR.z0 || z > TR.z1) return null;
-  const y = DESK_Y + 0.061 + ((TR.z1 - z) / 0.45) * 0.075;
+  // panel plane: 66 mm at the front edge rising 70 mm over the 478 mm depth
+  const y = DESK_Y + 0.066 + (Math.max(TR.front - z, 0) / 0.478) * 0.07;
   // module plate + jacks/knobs stand proud of the panel
-  const onModule = x > -0.15 && x < 0.24 && z > -0.2 && z < 0.06;
+  const onModule = x > -0.148 && x < 0.21 && z > -0.167 && z < 0.087;
   return y + (onModule ? 0.03 : 0.022);
 }
 function drape(p: THREE.Vector3) {

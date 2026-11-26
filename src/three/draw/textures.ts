@@ -1,6 +1,22 @@
 "use client";
 import * as THREE from "three";
-import { TRAINER_H, TRAINER_W, TRAINER_JACKS, TRAINER_KNOBS, TRAINER_METERS, MODULE_SLOT, DVM_RECT } from "@/lab/trainer";
+import {
+  AC_BOX,
+  BORDER,
+  DC_BOX,
+  DVM_BOX,
+  FG_BOX,
+  METER_BOXES,
+  MODULE_SLOT,
+  SPEAKER_BOX,
+  TRAINER_H,
+  TRAINER_JACKS,
+  TRAINER_KNOBS,
+  TRAINER_METERS,
+  TRAINER_W,
+  VR_BOXES,
+  VR_LABELS,
+} from "@/lab/trainer";
 import type { ModuleDef } from "@/lab/types";
 import { drawModuleFace } from "./schematic";
 
@@ -129,180 +145,235 @@ function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, si
   ctx.textAlign = align;
   ctx.textBaseline = "middle";
   ctx.fillText(s, x, y);
+  if (!bold) {
+    // screen-printed legends are a little heavier than regular Arial
+    const lw = ctx.lineWidth,
+      ss = ctx.strokeStyle;
+    ctx.lineWidth = size * 0.05;
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.lineJoin = "round";
+    ctx.strokeText(s, x, y);
+    ctx.lineWidth = lw;
+    ctx.strokeStyle = ss;
+  }
 }
 
 export function trainerPanelTexture() {
   return cached("trainer-panel", () => {
-    const S = 3; // px per mm
+    const S = 4; // px per mm
     const c = canvas(TRAINER_W * S, TRAINER_H * S);
     const ctx = c.getContext("2d")!;
     ctx.scale(S, S);
-    // base colour with slight grain
-    ctx.fillStyle = "#ebe8de";
+    // light grey printed aluminium panel (as photographed), faint grain
+    ctx.fillStyle = "#e3e4e0";
     ctx.fillRect(0, 0, TRAINER_W, TRAINER_H);
-    for (let i = 0; i < 9000; i++) {
-      ctx.fillStyle = `rgba(90,80,60,${Math.random() * 0.03})`;
-      ctx.fillRect(Math.random() * TRAINER_W, Math.random() * TRAINER_H, 0.5, 0.5);
+    for (let i = 0; i < 14000; i++) {
+      ctx.fillStyle = `rgba(70,72,80,${Math.random() * 0.025})`;
+      ctx.fillRect(Math.random() * TRAINER_W, Math.random() * TRAINER_H, 0.45, 0.45);
     }
     ctx.strokeStyle = INK;
     ctx.fillStyle = INK;
-    ctx.lineWidth = 0.55;
-    rrect(ctx, 4, 4, TRAINER_W - 8, TRAINER_H - 8, 3);
+    // thick black border line
+    ctx.lineWidth = 1.5;
+    rrect(ctx, BORDER.x, BORDER.y, BORDER.w, BORDER.h, 5);
     ctx.stroke();
-    // top strip
-    ctx.beginPath();
-    ctx.moveTo(4, 96);
-    ctx.lineTo(TRAINER_W - 4, 96);
-    ctx.stroke();
-    // logo
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(12, 6, 15, 9);
-    text(ctx, "KL", 19.5, 10.7, 5.2);
-    text(ctx, "KL-21001 LINEAR CIRCUIT LAB", 31, 10.8, 5.2, "left");
-    // DVM area
-    ctx.fillStyle = "#1a1a1a";
-    rrect(ctx, DVM_RECT.x - 2, DVM_RECT.y - 2, DVM_RECT.w + 4, DVM_RECT.h + 4, 1.5);
-    ctx.fill();
-    ctx.fillStyle = INK;
-    // meter sections
-    for (const m of TRAINER_METERS) {
-      ctx.beginPath();
-      ctx.moveTo(m.x - 3, 4);
-      ctx.lineTo(m.x - 3, 96);
+
+    const box = (r: [number, number, number, number], lw = 0.45, rad = 2.6) => {
+      ctx.lineWidth = lw;
+      rrect(ctx, r[0], r[1], r[2], r[3], rad);
       ctx.stroke();
-      text(ctx, m.title, m.x + m.w / 2, 11.5, 4.1);
-    }
-    // jack labels
-    for (const j of TRAINER_JACKS) {
-      if (!j.label) continue;
-      const off = 8.5;
-      const lp = j.lp ?? "n";
-      const dx = lp === "e" ? off - 2 : lp === "w" ? -off + 2 : 0;
-      const dy = lp === "n" ? -off : lp === "s" ? off - 1 : 0;
-      const sz = j.id.startsWith("vr") ? 3.6 : j.label.length > 6 ? 3.3 : 3.9;
-      text(ctx, j.label, j.x + dx, j.y + dy, sz, lp === "e" ? "left" : lp === "w" ? "right" : "center");
-    }
-    // function generator column
-    ctx.lineWidth = 0.55;
-    ctx.strokeRect(9, 100, 112, 316);
-    ctx.fillStyle = INK;
-    ctx.fillRect(9, 100, 112, 10);
-    ctx.fillStyle = "#f2efe6";
-    text(ctx, "FUNCTION GENERATOR", 65, 105.3, 4.6);
-    ctx.fillStyle = INK;
-    // AC/sine icon under OUTPUT
-    // module slot recess
-    ctx.fillStyle = "#d8d4c8";
-    ctx.fillRect(MODULE_SLOT.x, MODULE_SLOT.y, MODULE_SLOT.w, MODULE_SLOT.h);
-    ctx.fillStyle = INK;
-    // right column
-    ctx.strokeRect(506, 100, 88, 316);
-    const sec = (y: number, h: number, title: string) => {
-      ctx.strokeRect(506, y, 88, h);
-      ctx.fillRect(506, y, 88, 8.5);
-      ctx.fillStyle = "#f2efe6";
-      text(ctx, title, 550, y + 4.4, 4);
-      ctx.fillStyle = INK;
     };
-    sec(100, 56, "SPEAKER");
-    // speaker icon
-    ctx.lineWidth = 0.5;
-    ctx.strokeRect(556, 126, 8, 12);
-    ctx.beginPath();
-    ctx.moveTo(564, 126);
-    ctx.lineTo(576, 118);
-    ctx.lineTo(576, 146);
-    ctx.lineTo(564, 138);
+    /** section with a title band separated by a rule (right column style) */
+    const titled = (r: [number, number, number, number], title: string, band = 9) => {
+      box(r);
+      ctx.lineWidth = 0.45;
+      ctx.beginPath();
+      ctx.moveTo(r[0], r[1] + band);
+      ctx.lineTo(r[0] + r[2], r[1] + band);
+      ctx.stroke();
+      text(ctx, title, r[0] + r[2] / 2, r[1] + band / 2 + 0.3, 4.4, "center", false);
+    };
+
+    // ---- logo + model name (K&H style badge)
+    ctx.lineWidth = 0.55;
+    rrect(ctx, 16, 17, 17, 10, 1.6);
     ctx.stroke();
-    text(ctx, "INPUT", 520, 114, 3.4);
-    sec(160, 44, "AC SOURCE");
+    ctx.save();
+    ctx.translate(24.5, 22.4);
+    ctx.transform(1, 0, -0.25, 1, 0, 0);
+    text(ctx, "K&H", 0, 0, 5.4, "center", true);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(37, 22.6);
+    ctx.transform(1, 0, -0.22, 1, 0, 0);
+    text(ctx, "KL-21001 LINEAR CIRCUIT LAB", 0, 0, 5.6, "left", false);
+    ctx.restore();
+
+    // ---- digital meter section
+    box(DVM_BOX);
+    text(ctx, "DC VOLTAGE", 48, 104.5, 3.4, "center", false);
+    text(ctx, "COM", 92, 104.5, 3.4, "center", false);
+    text(ctx, "DC CURRENT", 136, 104.5, 3.4, "center", false);
+
+    // ---- analog meter sections
+    TRAINER_METERS.forEach((m, i) => {
+      box(METER_BOXES[i]);
+      text(ctx, m.title, METER_BOXES[i][0] + METER_BOXES[i][2] / 2, 22.2, 3.9, "center", false);
+      // zero-adjust screw hole
+      ctx.fillStyle = "#1a1a1a";
+      ctx.beginPath();
+      ctx.arc(m.x + m.w / 2, 86, 2.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = INK;
+    });
+
+    // ---- function generator
+    box(FG_BOX);
+    box([18, 129, 85, 11], 0.45, 2);
+    text(ctx, "FUNCTION GENERATOR", 60.5, 134.8, 4.1, "center", false);
+    text(ctx, "OUT/50Ω", 82, 147.5, 3.3, "center", false);
+
+    // ---- right column
+    titled(SPEAKER_BOX, "SPEAKER");
+    text(ctx, "INPUT", 489, 167, 3.2, "center", false);
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(527, 157, 6, 16);
     ctx.beginPath();
-    for (let i = 0; i <= 30; i++) {
-      const x = 540 + i * 0.8;
-      const y = 197 + Math.sin((i / 30) * Math.PI * 2) * 2.2;
+    ctx.moveTo(533, 157);
+    ctx.lineTo(546, 147);
+    ctx.lineTo(546, 183);
+    ctx.lineTo(533, 173);
+    ctx.stroke();
+    titled(AC_BOX, "AC SOURCE");
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i <= 28; i++) {
+      const x = 510 + i * 0.5;
+      const y = 208 + Math.sin((i / 28) * Math.PI * 2) * 1.8;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
-    sec(208, 84, "DC POWER SUPPLY");
-    text(ctx, "FIXED POWER", 550, 222, 3.6);
-    sec(296, 120, "ADJUST POWER");
-    text(ctx, "±3V~±18V", 550, 312, 3.8);
-    text(ctx, "OUTPUT", 552, 342, 3.4);
-    // VR row
-    for (let k = 0; k < 4; k++) {
-      const x0 = 150 + k * 92;
-      ctx.strokeRect(x0 - 16, 362, 90, 54);
-      const names = ["VR1 1KΩ", "VR2 10KΩ", "VR3 100KΩ", "VR4 1MΩ"];
-      text(ctx, names[k], x0 + 46, 370, 3.8);
-      // resistor symbol above A-C
-      ctx.lineWidth = 0.45;
+    ctx.beginPath();
+    ctx.ellipse(517, 208, 7.6, 3.4, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    titled(DC_BOX, "DC POWER SUPPLY");
+    text(ctx, "FIXED POWER", 517, 260, 3.8, "center", false);
+    ctx.lineWidth = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(474, 265);
+    ctx.lineTo(560, 265);
+    ctx.stroke();
+    // GND bus of the four black sockets
+    ctx.beginPath();
+    ctx.moveTo(484, 296);
+    ctx.lineTo(549, 296);
+    ctx.stroke();
+    text(ctx, "GND", 517, 304, 3.4, "center", false);
+    ctx.beginPath();
+    ctx.moveTo(474, 310);
+    ctx.lineTo(560, 310);
+    ctx.moveTo(474, 322);
+    ctx.lineTo(560, 322);
+    ctx.stroke();
+    text(ctx, "ADJUST POWER", 517, 316.3, 4.1, "center", false);
+    text(ctx, "±3V~±18V", 517, 333, 3.8, "center", false);
+    text(ctx, "OUTPUT", 517, 344.5, 3.6, "center", false);
+
+    // ---- VR row
+    VR_BOXES.forEach((r, i) => {
+      box(r);
+      const k = `vr${i + 1}`;
+      const xs = TRAINER_JACKS.filter((j) => j.id.startsWith(`${k}.`)).map((j) => j.x);
+      const lx = (TRAINER_KNOBS.find((kn) => kn.id === k)?.x ?? r[0] + 14) + 17;
+      text(ctx, k.toUpperCase(), lx, 389.5, 3.6, "left", false);
+      text(ctx, VR_LABELS[k], lx, 395.3, 3.3, "left", false);
+      // potentiometer symbol over A B C with the wiper arrow from B
+      const [xa, xb, xc] = xs;
+      const yz = 397;
+      ctx.lineWidth = 0.42;
       ctx.beginPath();
-      ctx.moveTo(x0 + 34, 396);
-      ctx.lineTo(x0 + 34, 391);
-      ctx.lineTo(x0 + 38, 391);
-      for (let i = 0; i < 6; i++) ctx.lineTo(x0 + 39.5 + i * 3, i % 2 ? 389 : 393);
-      ctx.lineTo(x0 + 62, 391);
-      ctx.lineTo(x0 + 66, 391);
-      ctx.lineTo(x0 + 66, 396);
+      ctx.moveTo(xa, 409);
+      ctx.lineTo(xa, yz);
+      ctx.lineTo(xb - 6, yz);
+      for (let z = 0; z < 6; z++) ctx.lineTo(xb - 5 + z * 2, z % 2 ? yz + 1.6 : yz - 1.6);
+      ctx.lineTo(xb + 6, yz);
+      ctx.lineTo(xc, yz);
+      ctx.lineTo(xc, 409);
+      ctx.moveTo(xb, 409);
+      ctx.lineTo(xb, yz + 2.5);
       ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(x0 + 50, 396);
-      ctx.lineTo(x0 + 50, 386);
-      ctx.stroke();
+      ctx.moveTo(xb, yz + 1.6);
+      ctx.lineTo(xb - 1.1, yz + 3.6);
+      ctx.lineTo(xb + 1.1, yz + 3.6);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // ---- socket labels
+    for (const j of TRAINER_JACKS) {
+      if (!j.label || j.id.startsWith("dvm.")) continue;
+      const lp = j.lp ?? "s";
+      const off = j.style === "brass" ? 5.4 : 7.4;
+      const dx = lp === "e" ? off : lp === "w" ? -off : 0;
+      const dy = lp === "n" ? -off + 0.6 : lp === "s" ? off - 0.4 : 0;
+      const sz = j.id.startsWith("vr") ? 3.4 : j.label.length > 5 ? 3.1 : 3.5;
+      text(ctx, j.label, j.x + dx, j.y + dy, sz, lp === "e" ? "left" : lp === "w" ? "right" : "center", false);
     }
-    // knob scales
+
+    // ---- knob scales
     for (const kn of TRAINER_KNOBS) {
       ctx.lineWidth = 0.4;
-      const R = kn.r + 3.5;
+      const R = kn.r + 3.2;
+      if (kn.label && !kn.id.startsWith("vr")) text(ctx, kn.label, kn.x, kn.y - kn.r - 6.5, 3.9, "center", false);
       if (kn.id.startsWith("vr")) continue;
-      if (kn.label) text(ctx, kn.label, kn.x, kn.y - kn.r - 9, 4.1);
       if (kn.detents && kn.marks) {
-        const n = kn.detents;
-        for (let i = 0; i < n; i++) {
+        for (let i = 0; i < kn.detents; i++) {
           const a = knobAngle(kn.detents, i) - Math.PI / 2;
-          ctx.beginPath();
-          ctx.moveTo(kn.x + Math.cos(a) * R, kn.y + Math.sin(a) * R);
-          ctx.lineTo(kn.x + Math.cos(a) * (R + 2), kn.y + Math.sin(a) * (R + 2));
-          ctx.stroke();
-          text(ctx, kn.marks[i], kn.x + Math.cos(a) * (R + 5.5), kn.y + Math.sin(a) * (R + 5.5), 3.4);
+          text(ctx, kn.marks[i], kn.x + Math.cos(a) * (R + 3.6), kn.y + Math.sin(a) * (R + 3.6), kn.id === "fg.func" ? 4.4 : 3.1, "center", false);
         }
       } else {
-        for (let i = 0; i <= 10; i++) {
-          const a = knobAngle(0, i / 10) - Math.PI / 2;
-          ctx.beginPath();
-          ctx.moveTo(kn.x + Math.cos(a) * R, kn.y + Math.sin(a) * R);
-          ctx.lineTo(kn.x + Math.cos(a) * (R + (i % 5 ? 1.2 : 2.2)), kn.y + Math.sin(a) * (R + (i % 5 ? 1.2 : 2.2)));
-          ctx.stroke();
-        }
-        if (kn.minLabel) text(ctx, kn.minLabel, kn.x - R - 1, kn.y + R + 2, 3.2, "right", false);
-        if (kn.maxLabel) text(ctx, kn.maxLabel, kn.x + R + 1, kn.y + R + 2, 3.2, "left", false);
+        if (kn.minLabel) text(ctx, kn.minLabel, kn.x - R + 1, kn.y + R + 1.8, 3.1, "right", false);
+        if (kn.maxLabel) text(ctx, kn.maxLabel, kn.x + R - 1, kn.y + R + 1.8, 3.1, "left", false);
       }
     }
-    // years of student use
+    // small black marks left of FUNCTION and RANGE (as on the unit)
+    ctx.fillStyle = "#151515";
+    for (const y of [225, 287]) {
+      ctx.beginPath();
+      ctx.arc(33, y, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = INK;
+
+    // ---- years of student use
     const touched: [number, number, number][] = [
       ...TRAINER_KNOBS.map((k) => [k.x, k.y, k.r * 2.4] as [number, number, number]),
-      ...TRAINER_JACKS.map((j) => [j.x, j.y, 9] as [number, number, number]),
-      [MODULE_SLOT.x + 20, MODULE_SLOT.y + MODULE_SLOT.h, 30],
+      ...TRAINER_JACKS.map((j) => [j.x, j.y, j.style === "brass" ? 6 : 8] as [number, number, number]),
+      [MODULE_SLOT.x + 20, MODULE_SLOT.y + MODULE_SLOT.h, 26],
     ];
     ageSurface(ctx, TRAINER_W, TRAINER_H, touched, 13);
-    // masking-tape bench label (as students do)
-    ctx.save();
-    ctx.translate(62, 421);
-    ctx.rotate(-0.025);
-    ctx.fillStyle = "rgba(190,228,170,0.92)";
-    ctx.fillRect(-22, -4.2, 44, 8.4);
-    ctx.fillStyle = "rgba(0,0,0,0.05)";
-    for (let i = 0; i < 30; i++) ctx.fillRect(-22 + Math.random() * 44, -4.2, 0.4, 8.4);
-    ctx.restore();
-    handNote(ctx, "Bench 3", 46, 421.5, 5, "#1b2a6b", -0.025);
+    // pencil marks students left on the generator column (seen in the photos)
+    ctx.strokeStyle = "rgba(60,60,70,0.22)";
+    ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(78, 211);
+    ctx.quadraticCurveTo(84, 205, 90, 212);
+    ctx.quadraticCurveTo(95, 218, 101, 210);
+    ctx.moveTo(80, 273);
+    ctx.lineTo(97, 271);
+    ctx.stroke();
     return toTexture(c, { aniso: 16 });
   });
 }
 
 /** angle (rad) of a knob value, 0 = 12 o'clock, range -135°..+135° */
 export function knobAngle(detents: number, v: number) {
-  if (detents && detents > 1) return (-120 * Math.PI) / 180 + (v / (detents - 1)) * ((240 * Math.PI) / 180);
+  if (detents && detents > 1) {
+    const span = detents === 3 ? 100 : 150;
+    return ((-span / 2) * Math.PI) / 180 + (v / (detents - 1)) * ((span * Math.PI) / 180);
+  }
   const span = (270 * Math.PI) / 180;
   return -span / 2 + v * span;
 }
@@ -338,15 +409,16 @@ export function moduleTexture(m: ModuleDef) {
 /* -------------------------------------------------------------- */
 export function meterFaceTexture(full: number, unit: string, ac: boolean) {
   return cached(`meter-${full}-${unit}-${ac}`, () => {
-    const c = canvas(512, 290);
+    // 74 x 44 mm dial
+    const c = canvas(512, 304);
     const ctx = c.getContext("2d")!;
-    const g = ctx.createLinearGradient(0, 0, 0, 290);
+    const g = ctx.createLinearGradient(0, 0, 0, 304);
     g.addColorStop(0, "#fbfbf6");
     g.addColorStop(1, "#ecebe4");
     ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 512, 290);
+    ctx.fillRect(0, 0, 512, 304);
     const cx = 256,
-      cy = 330,
+      cy = 344,
       R = 250;
     const a0 = -Math.PI / 2 - 0.72,
       a1 = -Math.PI / 2 + 0.72;
@@ -363,8 +435,9 @@ export function meterFaceTexture(full: number, unit: string, ac: boolean) {
     ctx.stroke();
     ctx.strokeStyle = "#111";
     ctx.fillStyle = "#111";
-    const major = full === 30 ? 6 : full === 15 ? 3 : 10;
-    const minor = 5;
+    // numbered divisions as printed: 0-5-10-15-20 V, 0-5-10-15 V, 0-20-..-100 mA
+    const major = full === 30 ? 6 : full === 15 ? 3 : full === 20 ? 4 : full === 100 ? 5 : 10;
+    const minor = full === 100 ? 4 : 5;
     const n = major * minor;
     for (let i = 0; i <= n; i++) {
       const a = a0 + ((a1 - a0) * i) / n;
@@ -383,11 +456,13 @@ export function meterFaceTexture(full: number, unit: string, ac: boolean) {
       }
     }
     ctx.font = "bold 46px Arial";
-    ctx.fillText(unit, cx, 230);
+    ctx.fillText(unit, cx, 238);
     ctx.font = "22px Arial";
-    ctx.fillText(ac ? "AC ~" : "DC ⎓", cx, 268);
+    ctx.fillText(ac ? "AC ~" : "DC ⎓", cx, 276);
     ctx.font = "bold 20px Arial";
-    ctx.fillText("KL", 50, 262);
+    ctx.fillText("KL", 50, 276);
+    ctx.font = "16px Arial";
+    ctx.fillText("CLASS 2.5", 452, 276);
     return toTexture(c);
   });
 }
@@ -423,6 +498,8 @@ export function draw7seg(
   on: string,
   off: string | null,
   digits: number,
+  /** digit proportions relative to the height (defaults: classic LED digit) */
+  shape: { w?: number; t?: number; gap?: number; skew?: number } = {},
 ) {
   // right-align into `digits` cells
   const chars: { ch: string; dot: boolean }[] = [];
@@ -431,10 +508,10 @@ export function draw7seg(
     else chars.push({ ch, dot: false });
   }
   while (chars.length < digits) chars.unshift({ ch: " ", dot: false });
-  const w = h * 0.55;
-  const t = h * 0.11;
-  const gap = h * 0.22;
-  const skew = h * 0.08;
+  const w = h * (shape.w ?? 0.55);
+  const t = h * (shape.t ?? 0.11);
+  const gap = h * (shape.gap ?? 0.22);
+  const skew = h * (shape.skew ?? 0.08);
   chars.slice(-digits).forEach((c, i) => {
     const ox = x + i * (w + gap);
     const segs = SEG[c.ch] ?? "";
@@ -483,43 +560,52 @@ function noise(ctx: CanvasRenderingContext2D, w: number, h: number, n: number, r
 
 export function blindsTexture() {
   return cached("blinds", () => {
+    // one 89 mm slat across (u) and 1.84 m along (v): ~1.4 px/mm both ways
     const W = 128,
-      H = 1024;
+      H = 2560;
     const c = canvas(W, H);
     const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#dcc493";
+    ctx.fillStyle = "#e2cc9e";
     ctx.fillRect(0, 0, W, H);
-    // woven texture
-    for (let y = 0; y < H; y += 2) {
-      ctx.fillStyle = `rgba(255,250,235,${0.08 + Math.random() * 0.06})`;
+    // lengthwise woven ribs of the fabric
+    for (let x = 0; x < W; x += 2) {
+      ctx.fillStyle = `rgba(255,248,228,${0.05 + Math.random() * 0.07})`;
+      ctx.fillRect(x, 0, 1, H);
+    }
+    for (let y = 0; y < H; y += 3) {
+      ctx.fillStyle = `rgba(120,95,55,${Math.random() * 0.035})`;
       ctx.fillRect(0, y, W, 1);
     }
-    // leafy diagonal jacquard pattern (as in the photos)
-    ctx.strokeStyle = "rgba(150,125,80,0.35)";
-    ctx.lineWidth = 3;
-    for (let k = 0; k < 26; k++) {
-      const y0 = k * 42 + (k % 2) * 12;
+    // jacquard motif: small wavy dashes in staggered rows (as photographed)
+    let seed = 7;
+    const r = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const dash = (x: number, y: number, len: number, ang: number, col: string, lw: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(ang);
+      ctx.strokeStyle = col;
+      ctx.lineWidth = lw;
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.moveTo(10, y0);
-      ctx.bezierCurveTo(40, y0 - 20, 70, y0 + 10, 118, y0 - 26);
+      ctx.moveTo(-len / 2, 0);
+      ctx.bezierCurveTo(-len / 6, -len * 0.32, len / 6, len * 0.32, len / 2, 0);
       ctx.stroke();
-      ctx.beginPath();
-      ctx.ellipse(64, y0 - 6, 18, 6, -0.5, 0, Math.PI * 2);
-      ctx.stroke();
+      ctx.restore();
+    };
+    for (let row = 0, y = 6; y < H - 20; row++, y += 17 + r() * 6) {
+      for (let x = (row % 2) * 16 + 6; x < W + 10; x += 30 + r() * 6) {
+        const ang = -0.45 + (r() - 0.5) * 0.5;
+        const len = 11 + r() * 9;
+        dash(x + (r() - 0.5) * 6, y + (r() - 0.5) * 5, len, ang, `rgba(168,128,62,${0.38 + r() * 0.2})`, 1.5 + r() * 0.6);
+        if (r() < 0.45) dash(x + 7 + r() * 4, y + 5 + r() * 3, len * 0.55, ang + 0.2, `rgba(176,136,70,${0.3 + r() * 0.15})`, 1.2);
+        // sheen of the brocade thread beside it
+        dash(x + 1, y - 1.5, len * 0.8, ang, "rgba(255,250,232,0.22)", 1);
+      }
     }
-    ctx.strokeStyle = "rgba(255,255,240,0.25)";
-    ctx.lineWidth = 2;
-    for (let k = 0; k < 26; k++) {
-      const y0 = k * 42 + 22;
-      ctx.beginPath();
-      ctx.moveTo(4, y0 + 10);
-      ctx.bezierCurveTo(30, y0 - 8, 90, y0 + 18, 124, y0);
-      ctx.stroke();
-    }
-    noise(ctx, W, H, 6000, "80,60,30", 0.08);
+    noise(ctx, W, H, 9000, "80,60,30", 0.07);
     // weighted hem at the bottom
     ctx.fillStyle = "rgba(120,100,70,0.25)";
-    ctx.fillRect(0, H - 14, W, 14);
+    ctx.fillRect(0, H - 22, W, 22);
     return toTexture(c);
   });
 }

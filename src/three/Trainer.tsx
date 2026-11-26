@@ -5,19 +5,23 @@ import { useFrame } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import { useBench } from "@/store/bench";
 import { useSim } from "@/lab/simController";
-import { DVM_RECT, MODULE_SLOT, TRAINER_H, TRAINER_JACKS, TRAINER_KNOBS, TRAINER_METERS, TRAINER_W } from "@/lab/trainer";
+import { DVM_RECT, MODULE_SLOT, SCREWS, TRAINER_H, TRAINER_JACKS, TRAINER_KNOBS, TRAINER_METERS, TRAINER_W } from "@/lab/trainer";
 import { getModule } from "@/lab/modules";
 import type { ModuleDef } from "@/lab/types";
 import { BananaJack, Knob, PinJacks } from "./Controls";
 import { MAT, plastic } from "./materials";
 import { canvas, draw7seg, meterFaceTexture, moduleTexture, toTexture, trainerPanelTexture } from "./draw/textures";
 import { anchorWorld, mm, surfaces, useUi } from "./registry";
+import { ringGeometry } from "./draw/shapes";
 import { plasticNormal, wearRoughness } from "./draw/pbr";
 import type { CustomPart } from "@/lab/types";
 import { removeOnRightClick } from "./interaction";
+import { sfx } from "@/audio/audio";
 
-export const BODY = { w: 0.62, d: 0.45, hFront: 0.055, hBack: 0.13 };
+/** KL-21001 case: beige wedge, the panel sits in a raised rim */
+export const BODY = { w: 0.61, d: 0.478, hFront: 0.058, hBack: 0.128 };
 export const SLOPE = Math.atan((BODY.hBack - BODY.hFront) / BODY.d);
+const RIM = 0.013; // rim width around the panel (m)
 
 const P = (u: number, v: number): [number, number] => [mm(u - TRAINER_W / 2), mm(v - TRAINER_H / 2)];
 
@@ -31,79 +35,160 @@ function useBodyGeometry() {
     s.lineTo(-hd, BODY.hFront);
     s.closePath();
     const g = new THREE.ExtrudeGeometry(s, {
-      depth: BODY.w - 0.012,
+      depth: BODY.w - 0.016,
       bevelEnabled: true,
-      bevelSize: 0.006,
-      bevelThickness: 0.006,
-      bevelSegments: 4,
+      bevelSize: 0.008,
+      bevelThickness: 0.008,
+      bevelSegments: 5,
       curveSegments: 4,
     });
-    g.translate(0, 0, -(BODY.w - 0.012) / 2);
+    g.translate(0, 0, -(BODY.w - 0.016) / 2);
     g.rotateY(Math.PI / 2);
     g.computeVertexNormals();
     return g;
   }, []);
 }
 
-/** red 7-segment digital DC meter */
+/** raised beige frame of the case around the printed panel */
+function PanelRim() {
+  const g = useMemo(
+    () => ringGeometry(mm(TRAINER_W) + 2 * RIM, mm(TRAINER_H) + 2 * RIM, mm(TRAINER_W) + 0.001, mm(TRAINER_H) + 0.001, 0.012, 0.004, 0.0035, 0.0012),
+    [],
+  );
+  return <mesh geometry={g} material={MAT.beige()} castShadow receiveShadow />;
+}
+
+/** black cross-head screws on the border line */
+function PanelScrews() {
+  const head = useMemo(() => new THREE.SphereGeometry(0.0028, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), []);
+  return (
+    <group>
+      {SCREWS.map(([u, v], i) => {
+        const [x, z] = P(u, v);
+        return (
+          <group key={i} position={[x, 0, z]} rotation={[0, i * 0.7, 0]}>
+            <mesh geometry={head} scale={[1, 0.45, 1]} material={MAT.blackPlastic()} castShadow />
+            <mesh position={[0, 0.00128, 0]} material={MAT.hole()}>
+              <boxGeometry args={[0.0034, 0.0003, 0.0007]} />
+            </mesh>
+            <mesh position={[0, 0.00128, 0]} rotation={[0, Math.PI / 2, 0]} material={MAT.hole()}>
+              <boxGeometry args={[0.0034, 0.0003, 0.0007]} />
+            </mesh>
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+/**
+ * KL-DVM-6005A digital DC meter: black bezel, range label plate with two yellow
+ * slide switches (function V / mA and resolution), red 3-digit LED display.
+ */
 function DigitalMeter() {
+  const PX = 4; // px per mm
   const { tex, ctx, c } = useMemo(() => {
-    const c = canvas(480, 160);
+    const c = canvas(DVM_RECT.w * PX, DVM_RECT.h * PX);
     const ctx = c.getContext("2d")!;
     return { tex: toTexture(c), ctx, c };
   }, []);
   const last = useRef("");
+  const sel = useBench((s) => (s.knobs["dvm.sel"] ?? 0) > 0.5);
+  const fine = useBench((s) => (s.knobs["dvm.rng"] ?? 0) > 0.5);
   useFrame(() => {
     const st = useBench.getState();
-    const sel = (st.knobs["dvm.sel"] ?? 0) > 0.5;
     const r = useSim.getState().readings;
     const v = sel ? r.dvm.a : r.dvm.v;
-    let s = st.power ? (Math.abs(v) >= 99.95 ? "1  " : (v < -0.05 ? "-" : "") + Math.abs(v).toFixed(1).padStart(4, "0")) : "    ";
-    if (!st.power) s = "";
-    const key = s + sel;
+    let s = "";
+    if (st.power) {
+      const a = Math.abs(v);
+      if (fine) s = a >= 9.995 ? "1  " : (v < -0.005 ? "-" : "") + a.toFixed(2);
+      else s = a >= 99.95 ? "1  " : (v < -0.05 ? "-" : "") + a.toFixed(1).padStart(4, "0");
+    }
+    const key = s + sel + fine;
     if (key === last.current) return;
     last.current = key;
-    ctx.fillStyle = "#120404";
-    ctx.fillRect(0, 0, c.width, c.height);
-    ctx.fillStyle = "#1a0a0a";
-    ctx.fillRect(170, 14, 300, 132);
-    draw7seg(ctx, s, 196, 26, 108, "#ff2b12", st.power ? "#2a0905" : "#1a0505", 3);
-    // selector legend
-    ctx.fillStyle = "#cfcfcf";
-    ctx.font = "bold 20px Arial";
-    ctx.fillText("V", 34, 46);
-    ctx.fillText("mA", 34, 126);
-    ctx.fillStyle = "#e0e0e0";
-    ctx.fillRect(84, sel ? 92 : 34, 46, 34);
-    ctx.strokeStyle = "#888";
-    ctx.strokeRect(84, 30, 46, 100);
+    ctx.setTransform(PX, 0, 0, PX, 0, 0);
+    // bezel interior
+    ctx.fillStyle = "#0d0d0e";
+    ctx.fillRect(0, 0, DVM_RECT.w, DVM_RECT.h);
+    // range label plate (left)
+    ctx.fillStyle = "#1b1c1e";
+    ctx.fillRect(4, 6, 36, 48);
+    ctx.strokeStyle = "#d8d8d8";
+    ctx.lineWidth = 0.35;
+    ctx.strokeRect(6, 9, 15, 13);
+    ctx.strokeRect(23, 9, 15, 13);
+    ctx.fillStyle = "#e8e8e8";
+    ctx.font = "bold 3.1px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("V", 10.2, 13.6);
+    ctx.fillText("mA", 16.6, 13.6);
+    ctx.fillText("x.xx", 27.4, 13.6);
+    ctx.fillText("xx.x", 33.8, 13.6);
+    ctx.font = "2.6px Arial";
+    ctx.fillText("FUNC", 13.5, 19.8);
+    ctx.fillText("RANGE", 30.5, 19.8);
+    // red LED window
+    ctx.fillStyle = "#1a0303";
+    ctx.fillRect(46, 9, 77, 38);
+    draw7seg(ctx, s, 53, 14, 26, "#ff2410", st.power ? "#2c0604" : "#1d0403", 3);
+    ctx.fillStyle = "#8c8c8c";
+    ctx.font = "2.9px Arial";
+    ctx.fillText("KL-DVM-6005A", 84.5, 53);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     tex.needsUpdate = true;
   });
   const [x, z] = P(DVM_RECT.x + DVM_RECT.w / 2, DVM_RECT.y + DVM_RECT.h / 2);
+  const bezel = useMemo(() => ringGeometry(mm(DVM_RECT.w + 6), mm(DVM_RECT.h + 6), mm(DVM_RECT.w - 1), mm(DVM_RECT.h - 1), 0.002, 0.0008, 0.0042, 0.0006), []);
+  const W = mm(DVM_RECT.w),
+    H = mm(DVM_RECT.h);
+  const sw = (on: boolean, id: string, cx: number) => (
+    <group
+      position={[-W / 2 + mm(cx), 0.0018, -H / 2 + mm(39)]}
+      onClick={(e) => {
+        e.stopPropagation();
+        const k = useBench.getState().knobs[id] ?? 0;
+        useBench.getState().setKnob(id, k > 0.5 ? 0 : 1);
+        sfx("button");
+      }}
+      onPointerOver={(e) => {
+        e.stopPropagation();
+        useUi.getState().setHover({ id: `dvm:${id}`, label: id === "dvm.sel" ? "V / mA" : "RANGE" });
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={() => {
+        useUi.getState().setHover(null);
+        document.body.style.cursor = "auto";
+      }}
+    >
+      <mesh material={MAT.hole()}>
+        <boxGeometry args={[mm(13), mm(1.2), mm(8)]} />
+      </mesh>
+      <mesh position={[on ? mm(3.2) : -mm(3.2), mm(1.6), 0]} castShadow>
+        <boxGeometry args={[mm(6), mm(3.2), mm(6.6)]} />
+        <meshPhysicalMaterial color="#e5bd2b" roughness={0.35} clearcoat={0.4} />
+      </mesh>
+    </group>
+  );
   return (
     <group position={[x, 0, z]}>
-      <mesh position={[0, 0.0015, 0]} material={MAT.blackPlastic()} castShadow>
-        <boxGeometry args={[mm(DVM_RECT.w + 4), 0.003, mm(DVM_RECT.h + 4)]} />
-      </mesh>
-      <mesh
-        position={[0, 0.0032, 0]}
-        rotation={[-Math.PI / 2, 0, 0]}
-        onClick={(e) => {
-          e.stopPropagation();
-          const k = useBench.getState().knobs["dvm.sel"] ?? 0;
-          useBench.getState().setKnob("dvm.sel", k > 0.5 ? 0 : 1);
-        }}
-      >
-        <planeGeometry args={[mm(DVM_RECT.w), mm(DVM_RECT.h)]} />
+      <mesh geometry={bezel} material={MAT.blackPlastic()} castShadow />
+      <mesh position={[0, 0.0006, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[W, H]} />
         <meshStandardMaterial map={tex} emissiveMap={tex} emissive="#ffffff" emissiveIntensity={2.4} roughness={0.25} />
       </mesh>
-      <mesh position={[0, 0.0036, 0]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.glass()}>
-        <planeGeometry args={[mm(DVM_RECT.w), mm(DVM_RECT.h)]} />
+      {sw(sel, "dvm.sel", 13.5)}
+      {sw(fine, "dvm.rng", 30.5)}
+      {/* red filter window */}
+      <mesh position={[-W / 2 + mm(84.5), 0.0036, -H / 2 + mm(28)]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.glass()}>
+        <planeGeometry args={[mm(77), mm(38)]} />
       </mesh>
     </group>
   );
 }
 
+/** moving-coil panel meter: grey frame, recessed white dial, glass, damped needle */
 function AnalogMeter({ m }: { m: (typeof TRAINER_METERS)[number] }) {
   const needle = useRef<THREE.Group>(null);
   const face = meterFaceTexture(m.full, m.unit, m.kind.startsWith("ac"));
@@ -136,37 +221,43 @@ function AnalogMeter({ m }: { m: (typeof TRAINER_METERS)[number] }) {
   const [x, z] = P(m.x + m.w / 2, m.y + m.h / 2);
   const W = mm(m.w),
     H = mm(m.h);
-  const pivotZ = H / 2 + mm(8);
+  const frame = useMemo(() => ringGeometry(W + mm(7), H + mm(7), W, H, 0.0022, 0.0012, 0.0062, 0.0006), [W, H]);
+  const walls = useMemo(() => ringGeometry(W + 0.0002, H + 0.0002, W - mm(1.6), H - mm(1.6), 0.0012, 0.0008, 0.0056, 0), [W, H]);
+  const pivotZ = H / 2 + mm(9);
   return (
     <group position={[x, 0, z]}>
-      {/* frame */}
-      <mesh position={[0, 0.002, -H / 2 - mm(2)]} material={MAT.darkGrey()} castShadow>
-        <boxGeometry args={[W + mm(6), 0.004, mm(4)]} />
+      <mesh geometry={frame} castShadow>
+        <meshPhysicalMaterial color="#3c3e43" roughness={0.45} clearcoat={0.3} />
       </mesh>
-      <mesh position={[0, 0.002, H / 2 + mm(2)]} material={MAT.darkGrey()} castShadow>
-        <boxGeometry args={[W + mm(6), 0.004, mm(4)]} />
-      </mesh>
-      <mesh position={[-W / 2 - mm(1.5), 0.002, 0]} material={MAT.darkGrey()}>
-        <boxGeometry args={[mm(3), 0.004, H]} />
-      </mesh>
-      <mesh position={[W / 2 + mm(1.5), 0.002, 0]} material={MAT.darkGrey()}>
-        <boxGeometry args={[mm(3), 0.004, H]} />
+      {/* light-grey inner walls of the movement housing */}
+      <mesh geometry={walls}>
+        <meshStandardMaterial color="#c9ccd0" roughness={0.6} />
       </mesh>
       <mesh position={[0, 0.0005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[W, H]} />
+        <planeGeometry args={[W - mm(1.6), H - mm(1.6)]} />
         <meshStandardMaterial map={face} roughness={0.6} />
       </mesh>
-      <group ref={needle} position={[0, 0.0016, pivotZ]}>
-        <mesh position={[0, 0, -mm(30)]} material={MAT.blackPlastic()}>
-          <boxGeometry args={[mm(0.6), mm(0.4), mm(54)]} />
+      <group ref={needle} position={[0, 0.0018, pivotZ]}>
+        <mesh position={[0, 0, -mm(29)]} material={MAT.blackPlastic()}>
+          <boxGeometry args={[mm(0.5), mm(0.35), mm(48)]} />
         </mesh>
       </group>
-      <mesh position={[0, 0.0012, H / 2 - mm(4)]} material={MAT.blackPlastic()}>
-        <boxGeometry args={[mm(22), mm(1.4), mm(8)]} />
+      {/* movement cover hiding the pivot */}
+      <mesh position={[0, 0.0016, H / 2 - mm(3.5)]} material={MAT.blackPlastic()}>
+        <boxGeometry args={[mm(24), mm(1.6), mm(6)]} />
       </mesh>
-      <mesh position={[0, 0.0038, 0]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.glass()}>
+      <mesh position={[0, 0.0058, 0]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.glass()}>
         <planeGeometry args={[W, H]} />
       </mesh>
+      {/* zero-adjust screw below the window */}
+      <group position={[0, 0.0004, H / 2 + mm(16)]}>
+        <mesh material={MAT.blackPlastic()}>
+          <cylinderGeometry args={[mm(2.2), mm(2.2), mm(0.8), 16]} />
+        </mesh>
+        <mesh position={[0, mm(0.45), 0]} rotation={[0, 0.5, 0]} material={MAT.hole()}>
+          <boxGeometry args={[mm(3.2), mm(0.2), mm(0.6)]} />
+        </mesh>
+      </group>
     </group>
   );
 }
@@ -175,7 +266,7 @@ function PowerSwitch() {
   const power = useBench((s) => s.power);
   return (
     <group
-      position={[BODY.w / 2 + 0.004, 0.05, 0.12]}
+      position={[BODY.w / 2 + 0.006, 0.05, 0.12]}
       onClick={(e) => {
         e.stopPropagation();
         useBench.getState().setPower(!useBench.getState().power);
@@ -380,8 +471,6 @@ export function ModulePlate({ mod }: { mod: ModuleDef }) {
           <cylinderGeometry args={[0.004, 0.004, 0.016, 12]} />
         </mesh>
       ))}
-      {/* module connector housing (black box, top-right as in the photos) */}
-      <RoundedBox args={[0.056, 0.016, 0.026]} radius={0.003} position={[mm(W / 2 - 44), 0.008, mm(-H / 2 + 14)]} material={MAT.blackPlastic()} castShadow />
       <PinJacks jacks={mod.jacks} prefix="m:" width={W} height={H} owner={ref} />
       {leds.map((p) => {
         const a = jp(p.pins[0]),
@@ -530,17 +619,19 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
     };
   }, [interactive]);
   const cy = (BODY.hFront + BODY.hBack) / 2;
-  const nrm = new THREE.Vector3(0, Math.cos(SLOPE), Math.sin(SLOPE)).multiplyScalar(0.0062);
+  const nrm = new THREE.Vector3(0, Math.cos(SLOPE), Math.sin(SLOPE)).multiplyScalar(0.0082);
   const [mx, mz] = P(MODULE_SLOT.x + MODULE_SLOT.w / 2, MODULE_SLOT.y + MODULE_SLOT.h / 2);
+  // the experiment boards are drawn at 368 x 252 mm; fit them to the slot
+  const ms = Math.min(MODULE_SLOT.w / 368, MODULE_SLOT.h / 252);
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
       <mesh ref={bodyRef} geometry={bodyGeo} material={MAT.beige()} castShadow receiveShadow />
       {/* rubber feet */}
       {[
-        [-0.27, -0.19],
-        [0.27, -0.19],
-        [-0.27, 0.19],
-        [0.27, 0.19],
+        [-0.27, -0.2],
+        [0.27, -0.2],
+        [-0.27, 0.2],
+        [0.27, 0.2],
       ].map(([x, z], i) => (
         <mesh key={i} position={[x, -0.003, z]} material={MAT.blackPlastic()}>
           <cylinderGeometry args={[0.012, 0.012, 0.006, 16]} />
@@ -560,6 +651,7 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
             clearcoatRoughness={0.45}
           />
         </mesh>
+        <PanelRim />
         {interactive ? (
           <>
             {TRAINER_JACKS.map((j) => {
@@ -568,13 +660,14 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
             })}
             {TRAINER_KNOBS.map((k) => {
               const [x, z] = P(k.x, k.y);
-              return <Knob key={k.id} id={k.id} x={x} z={z} r={k.r} detents={k.detents} />;
+              return <Knob key={k.id} id={k.id} x={x} z={z} r={k.r} detents={k.detents} bare={k.bare} />;
             })}
             <DigitalMeter />
             {TRAINER_METERS.map((m) => (
               <AnalogMeter key={m.id} m={m} />
             ))}
-            <group position={[mx, 0.017, mz]}>
+            <PanelScrews />
+            <group position={[mx, 0.017 * ms, mz]} scale={[ms, ms, ms]}>
               <ModulePlate key={mod.id} mod={mod} />
             </group>
           </>
@@ -590,35 +683,49 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
 function StaticDecor() {
   const tex = moduleTexture(getModule("kl23001"));
   const [mx, mz] = P(MODULE_SLOT.x + MODULE_SLOT.w / 2, MODULE_SLOT.y + MODULE_SLOT.h / 2);
+  const ms = Math.min(MODULE_SLOT.w / 368, MODULE_SLOT.h / 252);
   return (
     <>
       {TRAINER_KNOBS.map((k) => {
         const [x, z] = P(k.x, k.y);
         return (
-          <mesh key={k.id} position={[x, 0.008, z]} material={MAT.blackPlastic()}>
-            <cylinderGeometry args={[mm(k.r), mm(k.r * 1.1), 0.016, 20]} />
-          </mesh>
+          <group key={k.id} position={[x, 0, z]}>
+            <mesh position={[0, 0.0075, 0]} material={MAT.blackPlastic()}>
+              <cylinderGeometry args={[mm(k.r * 0.9), mm(k.r * 1.1), 0.015, 20]} />
+            </mesh>
+            {!k.bare && (
+              <mesh position={[0, 0.0152, 0]}>
+                <cylinderGeometry args={[mm(k.r * 0.78), mm(k.r * 0.78), 0.0006, 20]} />
+                <meshStandardMaterial color="#e9e5da" />
+              </mesh>
+            )}
+          </group>
         );
       })}
       {TRAINER_JACKS.map((j) => {
         const [x, z] = P(j.x, j.y);
         return (
-          <mesh key={j.id} position={[x, 0.004, z]} material={plastic(j.style ?? "black")}>
-            <cylinderGeometry args={[0.0045, 0.005, 0.008, 10]} />
+          <mesh key={j.id} position={[x, 0.003, z]} material={plastic(j.style === "brass" ? "#1b1a18" : j.style ?? "black")}>
+            <cylinderGeometry args={[j.style === "brass" ? 0.003 : 0.0046, 0.005, 0.006, 10]} />
           </mesh>
         );
       })}
       {TRAINER_METERS.map((m) => {
         const [x, z] = P(m.x + m.w / 2, m.y + m.h / 2);
         return (
-          <mesh key={m.id} position={[x, 0.001, z]} rotation={[-Math.PI / 2, 0, 0]}>
-            <planeGeometry args={[mm(m.w), mm(m.h)]} />
-            <meshStandardMaterial map={meterFaceTexture(m.full, m.unit, m.kind.startsWith("ac"))} />
-          </mesh>
+          <group key={m.id} position={[x, 0, z]}>
+            <mesh position={[0, 0.003, 0]} material={MAT.darkGrey()}>
+              <boxGeometry args={[mm(m.w + 7), 0.006, mm(m.h + 7)]} />
+            </mesh>
+            <mesh position={[0, 0.0062, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <planeGeometry args={[mm(m.w), mm(m.h)]} />
+              <meshStandardMaterial map={meterFaceTexture(m.full, m.unit, m.kind.startsWith("ac"))} />
+            </mesh>
+          </group>
         );
       })}
       <mesh position={[mx, 0.017, mz]} castShadow>
-        <boxGeometry args={[0.368, 0.003, 0.252]} />
+        <boxGeometry args={[0.368 * ms, 0.003, 0.252 * ms]} />
         <meshStandardMaterial attach="material-2" map={tex} />
         <meshStandardMaterial attach="material-0" color="#d9d9d4" />
         <meshStandardMaterial attach="material-1" color="#d9d9d4" />
@@ -626,6 +733,7 @@ function StaticDecor() {
         <meshStandardMaterial attach="material-4" color="#d9d9d4" />
         <meshStandardMaterial attach="material-5" color="#d9d9d4" />
       </mesh>
+      <PanelRim />
     </>
   );
 }

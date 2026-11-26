@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { fgSettings } from "@/lab/netlist";
-import { FG_RANGES, adjVoltage } from "@/lab/trainer";
+import { adjVoltage, fgDialFor } from "@/lab/trainer";
 import { fmtEng } from "@/sim/measure";
 import { useT } from "./i18n";
 
@@ -20,11 +20,8 @@ export function GeneratorChip() {
   const [a, setA] = useState("10");
   const st = useBench.getState();
   const apply = () => {
-    const freq = Math.max(0.1, parseFloat(f) || 1000);
-    // choose the range so that the dial sits within 0.1..2.35
-    let r = 0;
-    while (r < FG_RANGES.length - 1 && freq / FG_RANGES[r] > 2.35) r++;
-    const dial = Math.min(Math.max((freq / FG_RANGES[r] - 0.1) / 2.25, 0), 1);
+    const freq = Math.min(Math.max(10, parseFloat(f) || 1000), 100e3);
+    const { range: r, dial } = fgDialFor(freq);
     const vpp = Math.min(Math.max(parseFloat(a) || 0, 0), 20);
     useBench.setState((s) => ({ knobs: { ...s.knobs, "fg.range": r, "fg.freq": dial, "fg.amp": Math.sqrt(vpp / 20) } }));
   };

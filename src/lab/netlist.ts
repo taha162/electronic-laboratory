@@ -2,6 +2,7 @@
  * Converts the physical bench (trainer + module + patch cords + instrument leads)
  * into an MNA circuit for the solver.
  */
+import { DIV_X } from "@/scope/renderScope";
 import type { Circuit, Element, ProbeSpec, Waveform } from "@/sim/types";
 import { BJTS, DIODES, OPAMPS, opampMacro } from "@/sim/models";
 import type { CustomPart, PartDef } from "./types";
@@ -232,7 +233,7 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
   }
   for (const e of mod.earth ?? []) uf.union(`m:${e}`, EARTH);
   // trainer grounds
-  for (const g of ["fg.gnd", "ps.gnd", "adj.gnd"]) uf.union(`tr:${g}`, EARTH);
+  for (const g of ["fg.gnd", "ps.gnd", "ps.gnd2", "ps.gnd3", "ps.gnd4", "adj.gnd"]) uf.union(`tr:${g}`, EARTH);
   // scope ground clips are bonded to mains earth through the scope chassis
   uf.union("osc.ch1g", EARTH);
   uf.union("osc.ch2g", EARTH);
@@ -284,9 +285,6 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
     const fg = fgWaveform(k);
     els.push({ t: "V", id: "src.fg", a: T("fg.out"), b: 0, w: fg, rs: 50 });
     if (degree.get("tr:fg.out") && fg.kind !== "dc") activeFreqs.push(fg.freq);
-    const ttlF = fg.kind === "dc" ? 1000 : fg.freq;
-    els.push({ t: "V", id: "src.ttl", a: T("fg.ttl"), b: 0, w: { kind: "square", amp: 2.5, offset: 2.5, freq: ttlF }, rs: 50 });
-    if (degree.get("tr:fg.ttl")) activeFreqs.push(ttlF);
     // a supply in current limit behaves like a source behind a resistance V/Ilim
     const rsOf = (id: string, v: number, base: number) => {
       const L = SOURCE_LIMITS[id];
@@ -322,8 +320,10 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
   els.push({ t: "AM", id: "dvm.am", a: T("dvm.a"), b: T("dvm.com"), r: 1 });
   els.push({ t: "R", id: "m1.r", a: T("m1.p"), b: T("m1.n"), r: 600e3 });
   els.push({ t: "AM", id: "m2.am", a: T("m2.p"), b: T("m2.n"), r: 2.2 });
+  els.push({ t: "AM", id: "m2.am1", a: T("m2.p1a"), b: T("m2.n"), r: 0.22 });
   els.push({ t: "R", id: "m3.r", a: T("m3.p"), b: T("m3.n"), r: 150e3 });
   els.push({ t: "AM", id: "m4.am", a: T("m4.p"), b: T("m4.n"), r: 2.2 });
+  els.push({ t: "AM", id: "m4.am1", a: T("m4.p1a"), b: T("m4.n"), r: 0.22 });
   probes.push(
     { id: "dvm.v", kind: "v", a: T("dvm.v"), b: T("dvm.com") },
     { id: "dvm.a", kind: "i", el: "dvm.am" },
@@ -331,6 +331,8 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
     { id: "m2", kind: "i", el: "m2.am" },
     { id: "m3", kind: "v", a: T("m3.p"), b: T("m3.n") },
     { id: "m4", kind: "i", el: "m4.am" },
+    { id: "m2.1a", kind: "i", el: "m2.am1" },
+    { id: "m4.1a", kind: "i", el: "m4.am1" },
     { id: "spk", kind: "v", a: T("spk.p"), b: T("spk.n") },
   );
 
@@ -471,7 +473,7 @@ export function planTiming(b: BuiltCircuit, tdiv: number) {
   const fmin = Math.min(...b.activeFreqs);
   const fmax = Math.max(...b.activeFreqs);
   const T = 1 / fmin;
-  const W = tdiv * 12;
+  const W = tdiv * DIV_X;
   let capture = Math.max(W + 1.3 * T, 3 * T);
   capture = Math.min(capture, 400 / fmax + 1.3 * T, 1.0);
   let dt = Math.min(1 / (fmax * 400), W / 1500);

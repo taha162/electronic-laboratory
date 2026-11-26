@@ -19,14 +19,50 @@ export function BananaJack({ gid, x, z, style, label }: { gid: string; x: number
   const ref = useRef<THREE.Group>(null);
   const active = useBench((s) => s.pending === gid);
   const hovered = useUi((s) => s.hover?.id === gid);
+  const brass = style === "brass";
+  // mouth height above the panel (where a plug seats)
+  const mouth = brass ? 0.0032 : 0.0046;
   useLayoutEffect(() => {
-    if (ref.current) registerAnchor(gid, ref.current, new THREE.Vector3(0, 0.0075, 0));
+    if (ref.current) registerAnchor(gid, ref.current, new THREE.Vector3(0, mouth, 0));
     return () => unregisterAnchor(gid);
-  }, [gid]);
-  const hex = geo("jack-hex", () => new THREE.CylinderGeometry(0.0062, 0.0062, 0.0025, 6));
-  const body = geo("jack-body", () => new THREE.CylinderGeometry(0.0046, 0.005, 0.0068, 20));
-  const ring = geo("jack-ring", () => new THREE.CylinderGeometry(0.0023, 0.0023, 0.0072, 16, 1, true));
-  const holeG = geo("jack-hole", () => new THREE.CircleGeometry(0.002, 16));
+  }, [gid, mouth]);
+  // 4 mm socket: low moulded coloured collar with a rounded top (profile bottom -> top -> into the hole,
+  // so the lathe faces point outward), metal contact sleeve inside
+  const collar = geo(
+    "jack-collar2",
+    () =>
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0.0050, 0),
+          new THREE.Vector2(0.0050, 0.0029),
+          new THREE.Vector2(0.00485, 0.0037),
+          new THREE.Vector2(0.0044, 0.0043),
+          new THREE.Vector2(0.0036, 0.0046),
+          new THREE.Vector2(0.0026, 0.0045),
+          new THREE.Vector2(0.0022, 0.0042),
+          new THREE.Vector2(0.0022, 0.0036),
+        ],
+        32,
+      ),
+  );
+  const ring = geo(
+    "jack-sleeve",
+    () =>
+      new THREE.LatheGeometry(
+        [
+          new THREE.Vector2(0.00215, 0.0039),
+          new THREE.Vector2(0.00205, 0.0036),
+          new THREE.Vector2(0.00205, 0.0016),
+        ],
+        20,
+      ),
+  );
+  const holeG = geo("jack-hole", () => new THREE.CircleGeometry(0.0021, 18));
+  // small brass socket (meters, potentiometers, speaker)
+  const bBody = geo("brass-body", () => new THREE.CylinderGeometry(0.0031, 0.0034, 0.0028, 20));
+  const bRing = geo("brass-ring", () => new THREE.TorusGeometry(0.00175, 0.00055, 8, 20));
+  const bHole = geo("brass-hole", () => new THREE.CircleGeometry(0.0012, 14));
+  const glow = active ? 0.8 : hovered ? 0.35 : 0;
   return (
     <group
       ref={ref}
@@ -45,13 +81,22 @@ export function BananaJack({ gid, x, z, style, label }: { gid: string; x: number
         setCursor("auto");
       }}
     >
-      <mesh geometry={hex} material={MAT.chrome()} position={[0, 0.0012, 0]} castShadow />
-      <mesh geometry={body} material={plastic(style, active ? 0.8 : hovered ? 0.35 : 0)} position={[0, 0.0055, 0]} castShadow />
-      <mesh geometry={ring} material={MAT.chrome()} position={[0, 0.0055, 0]} />
-      <mesh geometry={holeG} material={MAT.hole()} position={[0, 0.0088, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+      {brass ? (
+        <>
+          <mesh geometry={bBody} material={plastic("#1b1a18", glow)} position={[0, 0.0014, 0]} castShadow />
+          <mesh geometry={bRing} material={MAT.brass()} position={[0, 0.0029, 0]} rotation={[Math.PI / 2, 0, 0]} />
+          <mesh geometry={bHole} material={MAT.hole()} position={[0, 0.00285, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        </>
+      ) : (
+        <>
+          <mesh geometry={collar} material={plastic(style, glow)} castShadow />
+          <mesh geometry={ring} material={MAT.chrome()} />
+          <mesh geometry={holeG} material={MAT.hole()} position={[0, 0.0017, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        </>
+      )}
       {/* generous invisible hit target */}
-      <mesh visible={false} position={[0, 0.005, 0]}>
-        <cylinderGeometry args={[0.0075, 0.0075, 0.012, 8]} />
+      <mesh visible={false} position={[0, 0.004, 0]}>
+        <cylinderGeometry args={[brass ? 0.006 : 0.0075, brass ? 0.006 : 0.0075, 0.01, 8]} />
       </mesh>
     </group>
   );
@@ -177,6 +222,7 @@ export function Knob({
   r,
   detents = 0,
   style = "black",
+  bare = false,
 }: {
   id: string;
   x: number;
@@ -184,6 +230,7 @@ export function Knob({
   r: number;
   detents?: number;
   style?: "black" | "trimmer";
+  bare?: boolean;
 }) {
   const value = useBench((s) => s.knobs[id] ?? 0);
   const drag = useRef<{ x: number; y: number; v: number } | null>(null);
@@ -192,7 +239,7 @@ export function Knob({
   const g = knobGeometry(r);
   const knurl = useMemo(() => {
     const items = [];
-    const n = 24;
+    const n = 28;
     for (let i = 0; i < n; i++) items.push((i / n) * Math.PI * 2);
     return items;
   }, []);
@@ -203,6 +250,8 @@ export function Knob({
     useBench.getState().setKnob(id, nv);
   };
   const capMat = style === "trimmer" ? plastic("#2f62c9") : MAT.blackPlastic();
+  // the KL-21001 knobs have a cream-white top insert with a black pointer line
+  const topMat = style === "trimmer" ? capMat : knobCapMaterial();
   return (
     <group
       position={[x, 0, z]}
@@ -243,21 +292,55 @@ export function Knob({
         if (!drag.current) setCursor("auto");
       }}
     >
-      <group rotation={[0, -angle, 0]}>
-        <mesh geometry={g} material={capMat} castShadow />
-        {knurl.map((a, i) => (
-          <mesh key={i} position={[Math.sin(a) * R * 0.985, R * 0.62, Math.cos(a) * R * 0.985]} rotation={[0, a, 0]} material={capMat}>
-            <boxGeometry args={[R * 0.12, R * 1.0, R * 0.08]} />
+      {bare ? (
+        // missing knob: knurled steel D-shaft and its fixing nut, still turnable
+        <group rotation={[0, -angle, 0]}>
+          <mesh position={[0, 0.001, 0]} material={MAT.chrome()} castShadow>
+            <cylinderGeometry args={[0.0058, 0.0058, 0.002, 6]} />
           </mesh>
-        ))}
-        {/* pointer line */}
-        <mesh position={[0, R * 1.275, -R * 0.5]} material={MAT.white()}>
-          <boxGeometry args={[R * 0.13, 0.0004, R * 0.8]} />
-        </mesh>
-        <mesh position={[0, R * 1.272, 0]} rotation={[-Math.PI / 2, 0, 0]} material={MAT.aluminium()}>
-          <circleGeometry args={[R * 0.42, 24]} />
-        </mesh>
-      </group>
+          <mesh position={[0, 0.0034, 0]} material={MAT.chrome()}>
+            <cylinderGeometry args={[0.0042, 0.0042, 0.003, 20]} />
+          </mesh>
+          <mesh position={[0, 0.0105, 0]} material={MAT.aluminium()} castShadow>
+            <cylinderGeometry args={[0.003, 0.003, 0.012, 24]} />
+          </mesh>
+          {knurl.map((a, i) =>
+            i % 2 ? null : (
+              <mesh key={i} position={[Math.sin(a) * 0.003, 0.0125, Math.cos(a) * 0.003]} rotation={[0, a, 0]} material={MAT.chrome()}>
+                <boxGeometry args={[0.0004, 0.007, 0.0003]} />
+              </mesh>
+            ),
+          )}
+          {/* the D flat shows where it points */}
+          <mesh position={[0, 0.0165, -0.0018]} material={MAT.darkGrey()}>
+            <boxGeometry args={[0.0042, 0.0002, 0.0012]} />
+          </mesh>
+        </group>
+      ) : (
+        <group rotation={[0, -angle, 0]}>
+          <mesh geometry={g} material={capMat} castShadow />
+          {knurl.map((a, i) => (
+            <mesh key={i} position={[Math.sin(a) * R * 0.955, R * 0.6, Math.cos(a) * R * 0.955]} rotation={[0, a, 0]} material={capMat}>
+              <boxGeometry args={[R * 0.1, R * 0.95, R * 0.07]} />
+            </mesh>
+          ))}
+          {/* top insert */}
+          <mesh position={[0, R * 1.262, 0]} material={topMat}>
+            <cylinderGeometry args={[R * 0.8, R * 0.83, R * 0.06, 32]} />
+          </mesh>
+          {/* pointer line */}
+          <mesh position={[0, R * 1.296, -R * 0.42]} material={style === "trimmer" ? MAT.white() : MAT.blackPlastic()}>
+            <boxGeometry args={[R * 0.11, 0.0003, R * 0.72]} />
+          </mesh>
+        </group>
+      )}
     </group>
   );
+}
+
+let capMaterial: THREE.MeshPhysicalMaterial | null = null;
+function knobCapMaterial() {
+  if (!capMaterial)
+    capMaterial = new THREE.MeshPhysicalMaterial({ color: "#ebe7dc", roughness: 0.32, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+  return capMaterial;
 }

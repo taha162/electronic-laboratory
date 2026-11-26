@@ -95,6 +95,21 @@ export const MAT = {
           sheenColor: new THREE.Color("#7fdcab"),
         }),
     ),
+  /** Pro'sKit holster: teal TPE rubber */
+  rubberTeal: () =>
+    get(
+      "rubberTeal",
+      () =>
+        new THREE.MeshPhysicalMaterial({
+          color: "#0f9c8d",
+          roughness: 0.62,
+          normalMap: plasticNormal([3, 3]),
+          normalScale: new THREE.Vector2(0.14, 0.14),
+          sheen: 0.45,
+          sheenRoughness: 0.75,
+          sheenColor: new THREE.Color("#8fe9dc"),
+        }),
+    ),
   white: () => get("white", () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.5 })),
 };
 
@@ -104,9 +119,12 @@ export const PLASTIC_COLORS: Record<string, string> = {
   yellow: "#e8c414",
   blue: "#1d4fd0",
   green: "#178a3c",
-  white: "#e9e9e6",
+  white: "#eeece4",
   greenyellow: "#9fc21c",
   pin: "#c9a85a",
+  // KL-21001 socket colours as photographed (muted pink-red, sky cyan, cream white)
+  pink: "#c4566a",
+  cyan: "#3ea3d1",
 };
 
 export function plastic(color: string, emissive = 0) {

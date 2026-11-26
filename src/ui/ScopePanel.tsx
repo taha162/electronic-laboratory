@@ -67,8 +67,8 @@ export function ScopePanel() {
           <div className="rounded-lg bg-black p-1.5">
             <canvas
               ref={canvasRef}
-              width={SCREEN_W}
-              height={SCREEN_H}
+              width={SCREEN_W * 2}
+              height={SCREEN_H * 2}
               className="block w-full cursor-pointer rounded"
               onClick={(e) => {
                 const r = e.currentTarget.getBoundingClientRect();

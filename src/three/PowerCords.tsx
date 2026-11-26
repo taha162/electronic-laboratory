@@ -13,8 +13,8 @@ const WALL_X = ROOM.x0 + 0.07;
 function TrainerMains() {
   const geo = useMemo(() => {
     const pts = [
-      new THREE.Vector3(-0.27, DESK_Y + 0.045, -0.29),
-      new THREE.Vector3(-0.31, DESK_Y + 0.02, -0.33),
+      new THREE.Vector3(-0.25, DESK_Y + 0.045, -0.316),
+      new THREE.Vector3(-0.3, DESK_Y + 0.02, -0.35),
       new THREE.Vector3(-0.5, DESK_Y + 0.006, -0.44),
       new THREE.Vector3(-0.85, DESK_Y + 0.006, -0.47),
       new THREE.Vector3(-1.08, DESK_Y + 0.008, -0.42),

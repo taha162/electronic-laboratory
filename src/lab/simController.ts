@@ -223,11 +223,12 @@ function computeReadings(res: SimResult, b: BuiltCircuit): Readings {
   return {
     dmm: { ...f, value, mode: st.dmmMode },
     dvm: { v: m("dvm.v")?.mean ?? 0, a: (m("dvm.a")?.mean ?? 0) * 1000 },
+    // needle position in scale units: the 1 A sockets use the same 0..100 scale (x10 mA)
     meters: {
       m1: m("m1")?.mean ?? 0,
-      m2: (m("m2")?.mean ?? 0) * 1000,
+      m2: (m("m2")?.mean ?? 0) * 1000 + (m("m2.1a")?.mean ?? 0) * 100,
       m3: avgResp("m3"),
-      m4: avgResp("m4") * 1000,
+      m4: avgResp("m4") * 1000 + avgResp("m4.1a") * 100,
     },
     led,
     overload,

@@ -1,6 +1,6 @@
 /** Board / panel description types (all coordinates in millimetres on the board surface). */
 
-export type JackStyle = "red" | "black" | "yellow" | "blue" | "green" | "white" | "pin";
+export type JackStyle = "red" | "black" | "yellow" | "blue" | "green" | "white" | "pin" | "pink" | "cyan" | "brass";
 
 export interface JackDef {
   id: string; // local id (unique within the board)

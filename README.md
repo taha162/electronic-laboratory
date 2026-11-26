@@ -1,6 +1,12 @@
 # مختبر الدوائر الإلكترونية الافتراضي · Virtual Electronic Circuits Laboratory
 
-An interactive, photo-referenced 3D replica of the **University of Mosul – College of Engineering electronic circuits laboratory**: the KL-21001 Linear Circuit Lab trainer with its KL-23001/23002/23003 experiment modules, the FNIRSI tablet oscilloscope and a digital multimeter, on the same white bench in front of the beige vertical blinds.
+An interactive, photo-referenced 3D replica of the **University of Mosul – College of Engineering electronic circuits laboratory**: the KL-21001 Linear Circuit Lab trainer with its KL-23001/23002/23003 experiment modules, the FNIRSI-1013D tablet oscilloscope and the Pro'sKit MT-1232 multimeter, on the same white bench in front of the beige vertical blinds.
+
+The three instruments are modelled from the lab's own photographs:
+
+* **KL-21001** – panel layout measured in millimetres from a perspective-rectified photo (homography of the panel's black border): KL-DVM-6005A digital meter with its two yellow range switches, four moving-coil meters (+20 V, 100 mA/1 A, 15 V~, 100 mA~/1 A~), function generator (GND / OUTPUT 50 Ω, 10 Hz–100 kHz in 4 ranges), speaker, 9-0-9 V AC, fixed ±5 V/±12 V with the GND bus, ±3–18 V adjustable supply, VR1–VR4 (VR3's knob is missing on this bench, so its bare knurled shaft is shown), coloured socket collars as fitted.
+* **FNIRSI-1013D** – 184 × 124 × 25 mm body (white front frame, dark rear shell, edge-to-edge black glass), 7" 800 × 480 screen with the firmware layout of the photographed unit: 14 × 8 divisions, header bar, soft keys and measurement boxes.
+* **Pro'sKit MT-1232** – 74 × 145 × 36 mm in its teal holster, 4000-count LCD with tall digits, SELECT / HOLD / backlight keys, rotary selector and 10A · COM · VΩmA inputs.
 
 All instrument readings come from a **real numerical circuit simulation** of what is wired on the bench — there are no pre-recorded waveforms.
 

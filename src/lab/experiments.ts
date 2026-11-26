@@ -40,7 +40,7 @@ export interface ExperimentDef {
 
 const fg = (vpp: number) => Math.sqrt(vpp / 20); // amplitude dial for a given Vpp (open circuit)
 // frequency dial for 1 kHz on the 1k range
-const F1K = { "fg.range": 3, "fg.freq": 0.4 };
+const F1K = { "fg.range": 2, "fg.freq": 0 };
 
 export const EXPERIMENTS: ExperimentDef[] = [
   /* ============================ EXP 1 ============================ */
@@ -594,7 +594,7 @@ export const EXPERIMENTS: ExperimentDef[] = [
           ["m:c.h", "m:c.g5", "black"],
         ],
         leads: { "osc.ch1": "m:c.b", "osc.ch2": "m:c.f" },
-        knobs: { "fg.func": 0, "fg.amp": fg(4), "fg.range": 4, "fg.freq": (0.503 - 0.1) / 2.25 },
+        knobs: { "fg.func": 0, "fg.amp": fg(4), "fg.range": 2, "fg.freq": (5.03 - 1) / 9 },
         scope: { tdiv: 100e-6, ch: [{ vdiv: 1, coupling: "AC" }, { vdiv: 0.5, coupling: "AC" }] },
       },
       {
@@ -609,7 +609,7 @@ export const EXPERIMENTS: ExperimentDef[] = [
           ["m:c.e", "m:c.g3", "black"],
         ],
         leads: { "osc.ch1": "m:c.in", "osc.ch2": "m:c.d" },
-        knobs: { "fg.range": 3, "fg.freq": (1.59 - 0.1) / 2.25 },
+        knobs: { "fg.range": 2, "fg.freq": (1.59 - 1) / 9 },
         scope: { tdiv: 200e-6, ch: [{ vdiv: 1, coupling: "AC" }, { vdiv: 1, coupling: "AC" }] },
       },
     ],

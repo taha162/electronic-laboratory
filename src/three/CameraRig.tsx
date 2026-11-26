@@ -13,8 +13,8 @@ export const CAMERA_PRESETS: Record<string, () => { pos: V3; target: V3 }> = {
   seat: () => ({ pos: [0.0, 1.22, 0.72], target: [0.0, 0.79, -0.06] }),
   bench: () => ({ pos: [0.05, 1.12, 0.48], target: [0.05, 0.8, -0.06] }),
   module: () => ({ pos: [0.08, 1.06, 0.3], target: [0.08, 0.82, -0.05] }),
-  generator: () => ({ pos: [-0.2, 1.0, 0.24], target: [-0.24, 0.83, -0.05] }),
-  power: () => ({ pos: [0.36, 1.0, 0.26], target: [0.32, 0.83, -0.02] }),
+  generator: () => ({ pos: [-0.17, 1.0, 0.27], target: [-0.2, 0.85, -0.01] }),
+  power: () => ({ pos: [0.29, 1.0, 0.28], target: [0.26, 0.84, 0.0] }),
   scope: () => {
     const p = useBench.getState().devices.osc;
     const c = Math.cos(p.rot),
