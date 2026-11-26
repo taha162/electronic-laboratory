@@ -1,0 +1,132 @@
+"use client";
+import { useBench, type Lang } from "@/store/bench";
+
+const D = {
+  appTitle: { en: "Electronic Circuits Laboratory", ar: "مختبر الدوائر الإلكترونية" },
+  appSub: { en: "University of Mosul · College of Engineering", ar: "جامعة الموصل · كلية الهندسة" },
+  explore: { en: "Explore", ar: "استكشاف" },
+  experiment: { en: "Experiment", ar: "تجربة" },
+  experiments: { en: "Experiments", ar: "التجارب" },
+  saves: { en: "Saved work", ar: "الأعمال المحفوظة" },
+  help: { en: "Help", ar: "مساعدة" },
+  quality: { en: "Quality", ar: "الجودة" },
+  high: { en: "High", ar: "عالية" },
+  low: { en: "Fast", ar: "سريعة" },
+  wire: { en: "Patch cord", ar: "سلك توصيل" },
+  clearAll: { en: "Remove all wires", ar: "إزالة كل الأسلاك" },
+  power: { en: "Power", ar: "التشغيل" },
+  on: { en: "ON", ar: "تشغيل" },
+  off: { en: "OFF", ar: "إطفاء" },
+  module: { en: "Module", ar: "اللوحة" },
+  views: { en: "Views", ar: "المشاهد" },
+  v_seat: { en: "Seat", ar: "المقعد" },
+  v_module: { en: "Module", ar: "اللوحة" },
+  v_generator: { en: "Generator", ar: "المولد" },
+  v_power: { en: "Supplies", ar: "المصادر" },
+  v_scope: { en: "Scope", ar: "الراسم" },
+  v_dmm: { en: "Multimeter", ar: "الملتيميتر" },
+  v_overview: { en: "Room", ar: "القاعة" },
+  hintPending: { en: "Click another socket to connect · Esc to cancel", ar: "انقر مقبساً آخر للتوصيل · Esc للإلغاء" },
+  hintHeld: { en: "Click a socket to clip the probe on · click the desk to put it down", ar: "انقر مقبساً لتثبيت المجس · انقر الطاولة لوضعه" },
+  hintPlacing: { en: "Click the holes for the component legs · Esc to stop", ar: "انقر الثقوب لأطراف القطعة · Esc للإيقاف" },
+  hintSelected: { en: "Wire selected · Delete to remove (or double-click / right-click)", ar: "سلك محدد · Delete للحذف (أو نقر مزدوج / زر أيمن)" },
+  simBusy: { en: "simulating…", ar: "جارٍ الحساب…" },
+  simOk: { en: "simulated", ar: "تمت المحاكاة" },
+  objective: { en: "Objective", ar: "الهدف" },
+  step: { en: "Step", ar: "الخطوة" },
+  prev: { en: "Previous", ar: "السابق" },
+  next: { en: "Next", ar: "التالي" },
+  autowire: { en: "Show me (auto-wire)", ar: "أرني (توصيل تلقائي)" },
+  check: { en: "Check my wiring", ar: "افحص توصيلي" },
+  allGood: { en: "All required connections are present ✓", ar: "جميع التوصيلات المطلوبة موجودة ✓" },
+  missing: { en: "Missing connections", ar: "توصيلات ناقصة" },
+  expect: { en: "Expected", ar: "المتوقع" },
+  results: { en: "Results", ar: "النتائج" },
+  capture: { en: "Insert reading into the selected cell", ar: "أدرج القراءة في الخانة المحددة" },
+  questions: { en: "Discussion", ar: "المناقشة" },
+  plot: { en: "Plot", ar: "رسم" },
+  save: { en: "Save", ar: "حفظ" },
+  load: { en: "Load", ar: "تحميل" },
+  del: { en: "Delete", ar: "حذف" },
+  exportJ: { en: "Export", ar: "تصدير" },
+  importJ: { en: "Import", ar: "استيراد" },
+  saveName: { en: "Name of this save", ar: "اسم الحفظ" },
+  noSaves: { en: "Nothing saved yet.", ar: "لا يوجد أعمال محفوظة بعد." },
+  close: { en: "Close", ar: "إغلاق" },
+  freeLab: { en: "Free work (no experiment)", ar: "عمل حر (بدون تجربة)" },
+  needModule: { en: "This experiment uses", ar: "هذه التجربة تستخدم" },
+  insertModule: { en: "Insert module", ar: "ركّب اللوحة" },
+  generator: { en: "Function generator", ar: "مولد الدوال" },
+  setExact: { en: "Set exactly", ar: "ضبط دقيق" },
+  frequency: { en: "Frequency", ar: "التردد" },
+  amplitude: { en: "Amplitude", ar: "السعة" },
+  waveform: { en: "Waveform", ar: "شكل الموجة" },
+  parts: { en: "Components", ar: "القطع" },
+  place: { en: "Place", ar: "ضع" },
+  scopeTitle: { en: "FNIRSI oscilloscope", ar: "راسم الإشارة FNIRSI" },
+  vdiv: { en: "V/div", ar: "فولت/قسم" },
+  tdiv: { en: "Time/div", ar: "زمن/قسم" },
+  coupling: { en: "Coupling", ar: "الاقتران" },
+  position: { en: "Position", ar: "الموضع" },
+  trigger: { en: "Trigger", ar: "القدح" },
+  level: { en: "Level", ar: "المستوى" },
+  source: { en: "Source", ar: "المصدر" },
+  edge: { en: "Edge", ar: "الحافة" },
+  modeL: { en: "Mode", ar: "النمط" },
+  run: { en: "Run/Stop", ar: "تشغيل/إيقاف" },
+  autoset: { en: "Auto set", ar: "ضبط تلقائي" },
+  cursors: { en: "Cursors", ar: "المؤشرات" },
+  measure: { en: "Measure", ar: "القياسات" },
+  savePic: { en: "Save picture", ar: "حفظ صورة" },
+  saveWave: { en: "Save wave (CSV)", ar: "حفظ الموجة (CSV)" },
+  dmm: { en: "Multimeter", ar: "الملتيميتر" },
+  dvm: { en: "Panel DC meter", ar: "مقياس الجهاز" },
+  welcomeTitle: { en: "Welcome to the virtual electronics lab", ar: "أهلاً بك في مختبر الإلكترونيك الافتراضي" },
+  welcomeBody: {
+    en: "You are seated at the KL-21001 bench. Drag to look around, scroll to lean in. Click two sockets to connect a patch cord, click a probe tip to pick it up, drag knobs to turn them. Everything you see on the instruments comes from a real circuit simulation.",
+    ar: "أنت جالس أمام جهاز KL-21001. اسحب للنظر حولك، ومرّر العجلة للاقتراب. انقر مقبسين لتوصيل سلك، وانقر رأس المجس لحمله، واسحب المقابض لتدويرها. كل ما يظهر على الأجهزة ناتج عن محاكاة حقيقية للدائرة.",
+  },
+  start: { en: "Start", ar: "ابدأ" },
+  helpBody: {
+    en: [
+      "Left-drag: look around · Right-drag: pan · Wheel: move closer (towards the cursor)",
+      "Explore mode: W A S D / arrows to walk, Q / E to go down / up, Shift = faster",
+      "Click a socket, then another socket: patch cord (neighbouring module sockets get a short-circuit clip)",
+      "Click a wire to select it; Delete, double-click or right-click removes it",
+      "Click an oscilloscope probe / ground clip / multimeter pen to pick it up, then click a socket",
+      "Knobs: drag up/right to increase, or use the wheel (Shift = fine)",
+      "Oscilloscope: touch the screen soft-keys (RUN/STOP, AUTO SET, cursors, MEASURE…) or CTRL for the full panel",
+      "Multimeter: click the dial to change function (right-click goes back)",
+      "Move the scope / multimeter: in Explore mode drag them, or Alt-drag; Shift-drag rotates",
+      "Power switch: right side of the KL-21001 main unit",
+    ],
+    ar: [
+      "سحب بالزر الأيسر: النظر حولك · الزر الأيمن: تحريك · العجلة: الاقتراب نحو المؤشر",
+      "نمط الاستكشاف: W A S D أو الأسهم للمشي، Q / E للنزول والصعود، Shift للإسراع",
+      "انقر مقبساً ثم مقبساً آخر: سلك توصيل (المقابس المتجاورة على اللوحة تأخذ مشبك قصر)",
+      "انقر سلكاً لتحديده؛ Delete أو النقر المزدوج أو الزر الأيمن يحذفه",
+      "انقر مجس الراسم أو مشبك الأرضي أو قلم الملتيميتر لحمله ثم انقر مقبساً",
+      "المقابض: اسحب للأعلى/لليمين للزيادة أو استخدم العجلة (Shift للدقة)",
+      "الراسم: المس أزرار الشاشة (RUN/STOP، AUTO SET، المؤشرات، MEASURE…) أو CTRL للوحة الكاملة",
+      "الملتيميتر: انقر القرص لتغيير الوظيفة (الزر الأيمن للرجوع)",
+      "تحريك الراسم/الملتيميتر: اسحبهما في نمط الاستكشاف أو مع Alt؛ Shift مع السحب للتدوير",
+      "مفتاح التشغيل: الجانب الأيمن من جهاز KL-21001",
+    ],
+  },
+} as const;
+
+export type TKey = keyof typeof D;
+
+export function t(lang: Lang, k: TKey): string {
+  const v = D[k][lang];
+  return Array.isArray(v) ? v.join("\n") : (v as string);
+}
+export function tl(lang: Lang, k: TKey): readonly string[] {
+  const v = D[k][lang];
+  return Array.isArray(v) ? v : [v as string];
+}
+
+export function useT() {
+  const lang = useBench((s) => s.lang);
+  return { lang, t: (k: TKey) => t(lang, k), tl: (k: TKey) => tl(lang, k), dir: lang === "ar" ? "rtl" : "ltr" } as const;
+}
