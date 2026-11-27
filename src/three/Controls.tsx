@@ -283,7 +283,7 @@ export function Knob({
   bare?: boolean;
 }) {
   const value = useBench((s) => s.knobs[id] ?? 0);
-  const drag = useRef<{ x: number; y: number; v: number } | null>(null);
+  const drag = useRef<{ x: number; y: number; v: number; t: number; moved: boolean } | null>(null);
   const angle = knobAngle(detents, value);
   const R = r / 1000;
   const g = knobGeometry(r);
@@ -313,13 +313,15 @@ export function Knob({
       onPointerDown={(e) => {
         e.stopPropagation();
         (e.target as unknown as { setPointerCapture(id: number): void }).setPointerCapture(e.pointerId);
-        drag.current = { x: e.clientX, y: e.clientY, v: value };
+        drag.current = { x: e.clientX, y: e.clientY, v: value, t: performance.now(), moved: false };
         useUi.getState().setDragging(true);
         setCursor("grabbing");
       }}
       onPointerMove={(e) => {
         if (!drag.current) return;
         e.stopPropagation();
+        if (!drag.current.moved && Math.hypot(e.clientX - drag.current.x, e.clientY - drag.current.y) < 6) return;
+        drag.current.moved = true;
         const d = (e.clientX - drag.current.x - (e.clientY - drag.current.y)) / (e.shiftKey ? 2400 : 260);
         const max = detents > 1 ? detents - 1 : 1;
         set(drag.current.v + d * max * (detents > 1 ? 1.6 : 1));
@@ -328,6 +330,8 @@ export function Knob({
         if (!drag.current) return;
         e.stopPropagation();
         (e.target as unknown as { releasePointerCapture(id: number): void }).releasePointerCapture(e.pointerId);
+        // a tap (no drag) opens the large on-screen control for this knob
+        if (!drag.current.moved && performance.now() - drag.current.t < 450) useUi.getState().setCtrl(id);
         drag.current = null;
         useUi.getState().setDragging(false);
         setCursor("auto");

@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { useMemo, useState } from "react";
 import { useBench } from "@/store/bench";
 import { useSim } from "@/lab/simController";
@@ -14,7 +15,7 @@ function Panel({ children, onClose, title }: { children: React.ReactNode; onClos
       <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
         <h2 className="text-sm font-semibold">{title}</h2>
         <button className="btn !px-2" onClick={onClose}>
-          ✕
+          <Icon name="close" />
         </button>
       </header>
       <div className="scroll-thin flex-1 overflow-y-auto px-4 py-3">{children}</div>
@@ -117,7 +118,7 @@ function ResultsTable({ expId, table }: { expId: string; table: TableDef }) {
       <div className="mb-1 flex items-center justify-between">
         <div className="text-xs font-semibold">{table.title[lang]}</div>
         <button className="btn !py-1 !text-[11px]" data-on={showPlot} onClick={() => setShowPlot(!showPlot)}>
-          📈 {t("plot")}
+          <Icon name="chart" size={16} /> {t("plot")}
         </button>
       </div>
       <div className="scroll-thin overflow-x-auto" dir="ltr">
@@ -179,7 +180,7 @@ function GuideToggle() {
   const guide = useUi((s) => s.guide);
   return (
     <button className="btn" data-on={guide} title={t("guideTip")} onClick={() => useUi.getState().setGuide(!guide)}>
-      ◎ {t("guide")}
+      <Icon name="target" size={16} /> {t("guide")}
     </button>
   );
 }
@@ -221,7 +222,7 @@ export function ExperimentPanel() {
       {exp && step && (
         <div>
           <button className="btn mb-3 !py-1 !text-[11px]" onClick={() => st.setExperiment(null)}>
-            {lang === "ar" ? "→" : "←"} {t("experiments")}
+            <Icon name={lang === "ar" ? "next" : "prev"} size={16} /> {t("experiments")}
           </button>
           <p className="mb-3 text-xs leading-relaxed text-[var(--color-mute)]">
             <b className="text-[var(--color-ink)]">{t("objective")}: </b>
@@ -258,12 +259,12 @@ export function ExperimentPanel() {
             <div className="mt-3 flex flex-wrap gap-1.5">
               {(step.wires || step.leads || step.knobs) && (
                 <button className="btn" onClick={() => (applyStep(exp.module, step), setCheck(null))}>
-                  ✦ {t("autowire")}
+                  <Icon name="plug" size={16} /> {t("autowire")}
                 </button>
               )}
               {(step.wires || step.leads) && (
                 <button className="btn" onClick={() => setCheck(checkStep(exp.module, step))}>
-                  ✓ {t("check")}
+                  <Icon name="check" size={16} /> {t("check")}
                 </button>
               )}
               {(step.wires || step.leads) && <GuideToggle />}

@@ -184,7 +184,7 @@ export function trainerPanelTexture() {
     rrect(ctx, BORDER.x, BORDER.y, BORDER.w, BORDER.h, 5);
     ctx.stroke();
 
-    const box = (r: [number, number, number, number], lw = 0.45, rad = 2.6) => {
+    const box = (r: [number, number, number, number], lw = 0.72, rad = 2.6) => {
       ctx.lineWidth = lw;
       rrect(ctx, r[0], r[1], r[2], r[3], rad);
       ctx.stroke();
@@ -192,7 +192,7 @@ export function trainerPanelTexture() {
     /** section with a title band separated by a rule (right column style) */
     const titled = (r: [number, number, number, number], title: string, band = 9) => {
       box(r);
-      ctx.lineWidth = 0.45;
+      ctx.lineWidth = 0.72;
       ctx.beginPath();
       ctx.moveTo(r[0], r[1] + band);
       ctx.lineTo(r[0] + r[2], r[1] + band);
@@ -201,7 +201,7 @@ export function trainerPanelTexture() {
     };
 
     // ---- logo + model name (K&H style badge)
-    ctx.lineWidth = 0.55;
+    ctx.lineWidth = 0.88;
     rrect(ctx, 16, 17, 17, 10, 1.6);
     ctx.stroke();
     ctx.save();
@@ -242,7 +242,7 @@ export function trainerPanelTexture() {
     // ---- right column
     titled(SPEAKER_BOX, "SPEAKER");
     text(ctx, "INPUT", 489, 167, 3.2, "center", false);
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = 0.8;
     ctx.strokeRect(527, 157, 6, 16);
     ctx.beginPath();
     ctx.moveTo(533, 157);
@@ -251,7 +251,7 @@ export function trainerPanelTexture() {
     ctx.lineTo(533, 173);
     ctx.stroke();
     titled(AC_BOX, "AC SOURCE");
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = 0.8;
     ctx.beginPath();
     for (let i = 0; i <= 28; i++) {
       const x = 510 + i * 0.5;
@@ -265,7 +265,7 @@ export function trainerPanelTexture() {
     ctx.stroke();
     titled(DC_BOX, "DC POWER SUPPLY");
     text(ctx, "FIXED POWER", 517, 260, 3.8, "center", false);
-    ctx.lineWidth = 0.45;
+    ctx.lineWidth = 0.72;
     ctx.beginPath();
     ctx.moveTo(474, 265);
     ctx.lineTo(560, 265);
@@ -297,7 +297,7 @@ export function trainerPanelTexture() {
       // potentiometer symbol over A B C with the wiper arrow from B
       const [xa, xb, xc] = xs;
       const yz = 397;
-      ctx.lineWidth = 0.42;
+      ctx.lineWidth = 0.67;
       ctx.beginPath();
       ctx.moveTo(xa, 409);
       ctx.lineTo(xa, yz);
@@ -330,7 +330,7 @@ export function trainerPanelTexture() {
 
     // ---- knob scales
     for (const kn of TRAINER_KNOBS) {
-      ctx.lineWidth = 0.4;
+      ctx.lineWidth = 0.64;
       const R = kn.r + 3.2;
       if (kn.label && !kn.id.startsWith("vr")) text(ctx, kn.label, kn.x, kn.y - kn.r - 6.5, 3.9, "center", false);
       if (kn.id.startsWith("vr")) continue;
@@ -362,7 +362,7 @@ export function trainerPanelTexture() {
     ageSurface(ctx, TRAINER_W, TRAINER_H, touched, 13);
     // pencil marks students left on the generator column (seen in the photos)
     ctx.strokeStyle = "rgba(60,60,70,0.22)";
-    ctx.lineWidth = 0.35;
+    ctx.lineWidth = 0.56;
     ctx.beginPath();
     ctx.moveTo(78, 211);
     ctx.quadraticCurveTo(84, 205, 90, 212);
@@ -575,22 +575,6 @@ export function deskTexture() {
     ctx.fillStyle = "#e9e8e4";
     ctx.fillRect(0, 0, W, H);
     noise(ctx, W, H, 60000, "120,120,115", 0.05, 2);
-    // faint pencil scribbles & equations like on the real bench
-    ctx.strokeStyle = "rgba(90,90,100,0.18)";
-    ctx.lineWidth = 2;
-    for (let k = 0; k < 14; k++) {
-      const x = Math.random() * W,
-        y = Math.random() * H;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      for (let i = 0; i < 12; i++) ctx.lineTo(x + i * 9 + Math.random() * 8, y + Math.sin(i) * 6 + Math.random() * 6);
-      ctx.stroke();
-    }
-    ctx.fillStyle = "rgba(90,90,110,0.16)";
-    ctx.font = "34px 'Comic Sans MS', cursive";
-    ["Vrms = Vp/√2", "f = 1/T", "10Vpp", "R=1k", "Av = -Rc/re", "3.54 V"].forEach((s) => {
-      ctx.fillText(s, Math.random() * (W - 300) + 50, Math.random() * (H - 100) + 60);
-    });
     return toTexture(c);
   });
 }
