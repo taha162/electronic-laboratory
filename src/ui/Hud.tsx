@@ -4,7 +4,7 @@ import { useBench } from "@/store/bench";
 import { useSim, jackVoltage } from "@/lab/simController";
 import { jackLabel } from "@/lab/experimentActions";
 import { fmtEng } from "@/sim/measure";
-import { useUi } from "@/three/registry";
+import { useUi } from "./uiState";
 import { useT } from "./i18n";
 import { usePhone } from "./usePhone";
 
@@ -70,6 +70,7 @@ export function Readings() {
   const r = useSim((s) => s.readings);
   const ch = useSim((s) => s.ch);
   const dmmMode = useBench((s) => s.dmmMode);
+  const dmm2Mode = useBench((s) => s.dmm2Mode ?? "dca");
   const scope = useBench((s) => s.scope);
   const { t } = useT();
   return (
@@ -79,8 +80,12 @@ export function Readings() {
     <div className={`pointer-events-none absolute inset-x-0 flex justify-center ${landscape ? "top-[0.7rem]" : "top-[3.4rem]"}`} dir="ltr">
       <div className="glass flex max-w-[96vw] items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full px-3 py-1 font-mono text-[11px]">
         <span>
-          <span className="text-[var(--color-mute)]">DMM </span>
+          <span className="text-[var(--color-mute)]">①</span>
           {dmmMode === "off" ? "OFF" : `${r.dmm.text} ${r.dmm.unit}`}
+        </span>
+        <span>
+          <span className="text-[var(--color-mute)]">②</span>
+          {dmm2Mode === "off" ? "OFF" : `${r.dmm2.text} ${r.dmm2.unit}`}
         </span>
         <span className="text-[#ff5a3c]">{r.dvm.v.toFixed(2)} V</span>
         {[0, 1].map((i) =>
@@ -95,8 +100,12 @@ export function Readings() {
     )}
     <div className={`pointer-events-none absolute end-3 top-[4.4rem] flex-col items-end gap-1.5 ${phone ? "hidden" : "hidden md:flex"}`} dir="ltr">
       <div className="glass flex items-center gap-2 rounded-lg px-2.5 py-1.5">
-        <span className="text-[10px] text-[var(--color-mute)]">{t("dmm")}</span>
+        <span className="text-[10px] text-[var(--color-mute)]">{t("dmm")} 1</span>
         <span className="font-mono text-sm font-semibold">{dmmMode === "off" ? "OFF" : `${r.dmm.text} ${r.dmm.unit}`}</span>
+      </div>
+      <div className="glass flex items-center gap-2 rounded-lg px-2.5 py-1.5">
+        <span className="text-[10px] text-[var(--color-mute)]">{t("dmm")} 2</span>
+        <span className="font-mono text-sm font-semibold">{dmm2Mode === "off" ? "OFF" : `${r.dmm2.text} ${r.dmm2.unit}`}</span>
       </div>
       <div className="glass flex items-center gap-2 rounded-lg px-2.5 py-1.5">
         <span className="text-[10px] text-[var(--color-mute)]">{t("dvm")}</span>

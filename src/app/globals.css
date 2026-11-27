@@ -102,3 +102,14 @@ select option {
     transform: translateX(320%);
   }
 }
+
+/* 2D bench: smoke rising from an overheating part */
+@keyframes smoke-rise {
+  0% { transform: translateY(0) scale(0.6); opacity: 0.55; }
+  100% { transform: translateY(-14px) scale(1.8); opacity: 0; }
+}
+.smoke-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: smoke-rise 1.4s ease-out infinite;
+}

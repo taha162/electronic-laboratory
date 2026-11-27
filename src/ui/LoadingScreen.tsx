@@ -5,9 +5,8 @@ import { STAGES, useLoad, type LoadStage } from "./loadProgress";
 import { Icon } from "./icons";
 
 const STAGE_TEXT: Record<LoadStage, { ar: string; en: string }> = {
-  engine: { ar: "تحميل محرك العرض والمحاكاة", en: "Loading the 3D engine and simulator" },
+  engine: { ar: "تحميل المختبر والمحاكاة", en: "Loading the bench and simulator" },
   prints: { ar: "رسم لوحات الأجهزة", en: "Drawing the instrument panels" },
-  shaders: { ar: "تجهيز الرسوميات", en: "Preparing the graphics" },
   frames: { ar: "تشغيل المختبر", en: "Starting the lab" },
   done: { ar: "جاهز", en: "Ready" },
 };
@@ -101,7 +100,7 @@ export function LoadingScreen({ visible }: { visible: boolean }) {
         </div>
 
         {/* stage checklist */}
-        <div className="mt-3 grid grid-cols-4 gap-1.5 text-[11px]">
+        <div className="mt-3 grid grid-cols-3 gap-1.5 text-[11px]">
           {STAGES.map((s, i) => (
             <div
               key={s}

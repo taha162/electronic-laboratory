@@ -145,7 +145,9 @@ export interface Wire {
 }
 
 /** instrument lead terminals that can be attached to a jack */
-export type LeadId = "osc.ch1" | "osc.ch1g" | "osc.ch2" | "osc.ch2g" | "dmm.v" | "dmm.com";
+export type LeadId = "osc.ch1" | "osc.ch1g" | "osc.ch2" | "osc.ch2g" | "dmm.v" | "dmm.com" | "dmm2.v" | "dmm2.com";
+/** the two multimeters on the bench */
+export type DmmId = "dmm" | "dmm2";
 
 export interface CustomPart extends PartDef {
   /** global jack ids */

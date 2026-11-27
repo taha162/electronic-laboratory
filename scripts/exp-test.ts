@@ -17,6 +17,7 @@ for (const ex of EXPERIMENTS) {
     if (st.leads) snap = { ...snap, leads: { ...snap.leads, ...(st.leads as Record<LeadId, string | null>) } };
     if (st.knobs) snap = { ...snap, knobs: { ...snap.knobs, ...st.knobs } };
     if (st.dmmMode) snap = { ...snap, dmmMode: st.dmmMode };
+    if (st.dmm2Mode) snap = { ...snap, dmm2Mode: st.dmm2Mode };
     const tdiv = st.scope?.tdiv ?? 500e-6;
     const b = buildCircuit(snap);
     const tm = planTiming(b, tdiv);
@@ -29,7 +30,7 @@ for (const ex of EXPERIMENTS) {
     };
     if (!r.ok) fails++;
     console.log(`${ex.id}.${i} ${r.ok ? "ok " : "ERR " + r.message} ${r.stats.ms.toFixed(0)}ms n=${r.stats.unknowns} steps=${r.stats.steps}`);
-    console.log(`   ch1 ${f("ch1")}\n   ch2 ${f("ch2")}\n   dmm ${f("dmm")} dvm ${f("dvm.v")} m2 ${f("m2")}`);
+    console.log(`   ch1 ${f("ch1")}\n   ch2 ${f("ch2")}\n   dmm ${f("dmm")} dmm2 ${f("dmm2")} dvm ${f("dvm.v")} m2 ${f("m2")}`);
   }
 }
 process.exit(fails ? 1 : 0);

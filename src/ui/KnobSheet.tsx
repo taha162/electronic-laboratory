@@ -1,6 +1,6 @@
 "use client";
 import { useBench } from "@/store/bench";
-import { useUi } from "@/three/registry";
+import { useUi } from "./uiState";
 import { TRAINER_KNOBS, VR_LABELS, VR_VALUES, adjVoltage, fgAmplitudeVpp, fgFrequency } from "@/lab/trainer";
 import { fmtEng } from "@/sim/measure";
 import { Icon } from "./icons";

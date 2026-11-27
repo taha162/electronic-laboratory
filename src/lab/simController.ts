@@ -18,8 +18,16 @@ export interface Stress {
   level: "warm" | "hot";
 }
 
+export interface DmmReading {
+  text: string;
+  unit: string;
+  value: number | null;
+  mode: DmmMode;
+}
+
 export interface Readings {
-  dmm: { text: string; unit: string; value: number | null; mode: DmmMode };
+  dmm: DmmReading;
+  dmm2: DmmReading;
   dvm: { v: number; a: number };
   meters: Record<"m1" | "m2" | "m3" | "m4", number>;
   led: Record<string, number>;
@@ -40,6 +48,7 @@ interface SimState {
 
 const EMPTY_READINGS: Readings = {
   dmm: { text: "0.000", unit: "V", value: 0, mode: "dcv" },
+  dmm2: { text: "0.00", unit: "mA", value: 0, mode: "dca" },
   dvm: { v: 0, a: 0 },
   meters: { m1: 0, m2: 0, m3: 0, m4: 0 },
   led: {},
@@ -150,37 +159,36 @@ function partIndex() {
 function computeReadings(res: SimResult, b: BuiltCircuit): Readings {
   const st = useBench.getState();
   const m = (id: string) => (res.data[id] ? measure(res.t, res.data[id]) : null);
-  const d = m("dmm");
-  let value: number | null = 0;
-  switch (st.dmmMode) {
-    case "off":
-      value = null;
-      break;
-    case "dcv":
-      value = d?.mean ?? 0;
-      break;
-    case "acv":
-      value = d?.acRms ?? 0; // true-RMS meter
-      break;
-    case "dca":
-      value = (d?.mean ?? 0) * 1000;
-      break;
-    case "aca":
-      value = (d?.acRms ?? 0) * 1000;
-      break;
-    case "ohm": {
-      const v = d?.mean ?? 0;
-      const i = m("dmm.i")?.mean ?? 0;
-      const r = i > 1e-10 ? v / i : Infinity;
-      value = Number.isFinite(r) && r >= 0 ? r : null;
-      break;
+  const dmmReading = (p: "dmm" | "dmm2", mode: DmmMode) => {
+    const d = m(p);
+    let value: number | null = 0;
+    switch (mode) {
+      case "off":
+        value = null;
+        break;
+      case "dcv":
+      case "diode":
+        value = d?.mean ?? 0;
+        break;
+      case "acv":
+        value = d?.acRms ?? 0; // true-RMS meter
+        break;
+      case "dca":
+        value = (d?.mean ?? 0) * 1000;
+        break;
+      case "aca":
+        value = (d?.acRms ?? 0) * 1000;
+        break;
+      case "ohm": {
+        const v = d?.mean ?? 0;
+        const i = m(`${p}.i`)?.mean ?? 0;
+        const r = i > 1e-10 ? v / i : Infinity;
+        value = Number.isFinite(r) && r >= 0 ? r : null;
+        break;
+      }
     }
-    case "diode": {
-      value = d?.mean ?? 0;
-      break;
-    }
-  }
-  const f = formatDmm(st.dmmMode, value);
+    return { ...formatDmm(mode, value), value, mode };
+  };
   const led: Record<string, number> = {};
   for (const id of b.ledIds) led[id] = m(`led:${id}`)?.mean ?? 0;
 
@@ -221,7 +229,8 @@ function computeReadings(res: SimResult, b: BuiltCircuit): Readings {
   }
 
   return {
-    dmm: { ...f, value, mode: st.dmmMode },
+    dmm: dmmReading("dmm", st.dmmMode),
+    dmm2: dmmReading("dmm2", st.dmm2Mode ?? "dca"),
     dvm: { v: m("dvm.v")?.mean ?? 0, a: (m("dvm.a")?.mean ?? 0) * 1000 },
     // needle position in scale units: the 1 A sockets use the same 0..100 scale (x10 mA)
     meters: {
@@ -261,7 +270,7 @@ const hotSince = new Map<string, number>();
 
 function benchKey() {
   const st = useBench.getState();
-  return JSON.stringify([st.moduleId, st.wires.map((w) => [w.a, w.b]), st.leads, st.knobs, st.power, st.dmmMode, st.customParts.length, st.damaged]);
+  return JSON.stringify([st.moduleId, st.wires.map((w) => [w.a, w.b]), st.leads, st.knobs, st.power, st.dmmMode, st.dmm2Mode, st.customParts.length, st.damaged]);
 }
 
 function request(force = false) {

@@ -1,5 +1,8 @@
-"use client";
-import * as THREE from "three";
+/**
+ * Printed faces of the bench (KL-21001 panel, module boards, analog meter scales) and
+ * the 7-segment digits, drawn with the canvas API. They are replayed into an SvgCtx
+ * (svgctx.ts) to become crisp vector prints for the 2D bench.
+ */
 import {
   AC_BOX,
   BORDER,
@@ -21,40 +24,11 @@ import type { ModuleDef } from "@/lab/types";
 import { grain } from "./grain";
 import { drawModuleFace } from "./schematic";
 
-const cache = new Map<string, THREE.Texture>();
-
 export function canvas(w: number, h: number) {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
   return c;
-}
-
-export function toTexture(c: HTMLCanvasElement, opts: { repeat?: [number, number]; srgb?: boolean; aniso?: number } = {}) {
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = opts.srgb === false ? THREE.NoColorSpace : THREE.SRGBColorSpace;
-  t.anisotropy = opts.aniso ?? 16; // clamped to the GPU's maximum by three.js
-  if (opts.repeat) {
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.repeat.set(opts.repeat[0], opts.repeat[1]);
-  }
-  t.needsUpdate = true;
-  return t;
-}
-
-/** resolution of the printed panels: sharp close-ups on desktops, lighter on phones */
-function printPxPerMm() {
-  const coarse = typeof window !== "undefined" && !!window.matchMedia?.("(pointer: coarse)").matches;
-  return coarse ? 4.5 : 6;
-}
-
-function cached(key: string, make: () => THREE.Texture) {
-  let t = cache.get(key);
-  if (!t) {
-    t = make();
-    cache.set(key, t);
-  }
-  return t;
 }
 
 /* -------------------------------------------------------------- */
@@ -165,12 +139,9 @@ function text(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, si
   }
 }
 
-export function trainerPanelTexture() {
-  return cached("trainer-panel", () => {
-    const S = printPxPerMm(); // px per mm
-    const c = canvas(Math.round(TRAINER_W * S), Math.round(TRAINER_H * S));
-    const ctx = c.getContext("2d")!;
-    ctx.scale(c.width / TRAINER_W, c.height / TRAINER_H);
+/** the KL-21001 front panel print, in panel millimetres */
+export function drawTrainerPanel(ctx: CanvasRenderingContext2D) {
+  {
     // light grey printed aluminium panel (as photographed), faint grain
     ctx.fillStyle = "#e3e4e0";
     ctx.fillRect(0, 0, TRAINER_W, TRAINER_H);
@@ -368,8 +339,7 @@ export function trainerPanelTexture() {
     ctx.moveTo(80, 273);
     ctx.lineTo(97, 271);
     ctx.stroke();
-    return toTexture(c, { aniso: 16 });
-  });
+  }
 }
 
 /** angle (rad) of a knob value, 0 = 12 o'clock, range -135°..+135° */
@@ -383,13 +353,10 @@ export function knobAngle(detents: number, v: number) {
 }
 
 /* -------------------------------------------------------------- */
-export function moduleTexture(m: ModuleDef) {
-  return cached(`module-${m.id}`, () => {
-    const S = printPxPerMm();
+/** a module board's print with years of use and the students' pen notes, in board millimetres */
+export function drawModulePrint(ctx: CanvasRenderingContext2D, m: ModuleDef) {
+  {
     const [W, H] = m.size;
-    const c = canvas(Math.round(W * S), Math.round(H * S));
-    const ctx = c.getContext("2d")!;
-    ctx.scale(c.width / W, c.height / H);
     drawModuleFace(ctx, m);
     ageSurface(
       ctx,
@@ -407,16 +374,14 @@ export function moduleTexture(m: ModuleDef) {
     } else if (m.id === "kl23003") {
       handNote(ctx, "VCE=6V", 25, 53, 3.8, "#22348f", -0.04);
     }
-    return toTexture(c, { aniso: 16 });
-  });
+  }
 }
 
 /* -------------------------------------------------------------- */
-export function meterFaceTexture(full: number, unit: string, ac: boolean) {
-  return cached(`meter-${full}-${unit}-${ac}`, () => {
-    // 74 x 44 mm dial
-    const c = canvas(512, 304);
-    const ctx = c.getContext("2d")!;
+/** analog meter scale (74 x 44 mm dial) drawn in a 512 x 304 unit box */
+export const METER_FACE_PX: [number, number] = [512, 304];
+export function drawMeterFace(ctx: CanvasRenderingContext2D, full: number, unit: string, ac: boolean) {
+  {
     const g = ctx.createLinearGradient(0, 0, 0, 304);
     g.addColorStop(0, "#fbfbf6");
     g.addColorStop(1, "#ecebe4");
@@ -468,8 +433,7 @@ export function meterFaceTexture(full: number, unit: string, ac: boolean) {
     ctx.fillText("KL", 50, 276);
     ctx.font = "16px Arial";
     ctx.fillText("CLASS 2.5", 452, 276);
-    return toTexture(c);
-  });
+  }
 }
 
 /* -------------------------------------------------------------- */
@@ -552,43 +516,4 @@ export function draw7seg(
     }
   });
 }
-
-/* -------------------------------------------------------------- */
-/* Environment textures                                            */
-/* -------------------------------------------------------------- */
-
-
-
-export function deskTexture() {
-  return cached("desk", () => {
-    const W = 2048,
-      H = 1024;
-    const c = canvas(W, H);
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#e9e8e4";
-    ctx.fillRect(0, 0, W, H);
-    grain(ctx, [120, 120, 115], 0.06, 0.18, 23);
-    return toTexture(c);
-  });
-}
-
-
-
-
-export function radialGlowTexture() {
-  return cached("glow", () => {
-    const c = canvas(128, 128);
-    const ctx = c.getContext("2d")!;
-    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    g.addColorStop(0, "rgba(255,255,255,1)");
-    g.addColorStop(0.3, "rgba(255,255,255,0.5)");
-    g.addColorStop(1, "rgba(255,255,255,0)");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, 128, 128);
-    return toTexture(c);
-  });
-}
-
-
-/** Arabic / English lab safety notice */
 
