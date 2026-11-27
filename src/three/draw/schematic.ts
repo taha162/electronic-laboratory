@@ -110,6 +110,26 @@ export function drawPart(ctx: CanvasRenderingContext2D, p: PartDef, jackPos: (id
   };
 
   switch (p.kind) {
+    case "EXT":
+      // external part: printed dashed, completed with a patch cord to the KL-21001 VR
+      ctx.save();
+      ctx.setLineDash([1.6, 1.1]);
+      drawPart(ctx, { ...p, kind: p.ext === "pot" ? "POT" : "RV", label: undefined, text: undefined }, jackPos);
+      ctx.restore();
+      if (pins[0] && pins[1]) {
+        const a = pins[0],
+          b = pins[p.ext === "pot" ? 2 : 1] ?? pins[1];
+        const mid: P = p.at ?? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        ctx.fillStyle = "#b3261e";
+        ctx.font = "bold 3.4px Arial";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        if (p.label) ctx.fillText(p.label, mid[0] - 7, mid[1] - 2);
+        ctx.font = "bold 2.9px Arial";
+        if (p.text) ctx.fillText(p.text, mid[0] - 7, mid[1] + 2.2);
+        ctx.fillStyle = INK;
+      }
+      return;
     case "R":
     case "RV":
       twoPin((L) => {

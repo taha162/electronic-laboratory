@@ -15,6 +15,8 @@ import { SavesPanel } from "./SavesPanel";
 import { PartsPanel } from "./PartsPanel";
 import { HelpPanel, Welcome } from "./HelpPanel";
 import { KnobSheet } from "./KnobSheet";
+import { LoadingScreen } from "./LoadingScreen";
+import { useLoad } from "./loadProgress";
 import { GeneratorChip } from "./GeneratorChip";
 import { Alerts } from "./Alerts";
 import { useT } from "./i18n";
@@ -29,26 +31,6 @@ function Loading() {
   return <LoadingScreen visible />;
 }
 
-/** branded loading curtain that fades away once the first frames are rendered */
-function LoadingScreen({ visible }: { visible: boolean }) {
-  const lang = useBench((s) => s.lang);
-  return (
-    <div
-      className="pointer-events-none absolute inset-0 z-50 grid place-items-center bg-[#15181d] transition-opacity duration-[1400ms]"
-      style={{ opacity: visible ? 1 : 0 }}
-    >
-      <div className="text-center">
-        <div className="mx-auto mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-[var(--color-accent)] text-lg font-bold text-black shadow-[0_0_40px_rgba(242,179,61,0.35)]">KL</div>
-        <div className="text-base font-semibold">{lang === "ar" ? "مختبر الدوائر الإلكترونية" : "Electronic Circuits Laboratory"}</div>
-        <div className="mt-1 text-xs text-[var(--color-mute)]">{lang === "ar" ? "جامعة الموصل · كلية الهندسة" : "University of Mosul · College of Engineering"}</div>
-        <div className="mx-auto mt-6 h-1 w-48 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full w-1/3 animate-[loadbar_1.2s_ease-in-out_infinite] rounded-full bg-[var(--color-accent)]" />
-        </div>
-        <div className="mt-3 text-[11px] text-[var(--color-mute)]">{lang === "ar" ? "جارٍ تجهيز المختبر…" : "Preparing the laboratory…"}</div>
-      </div>
-    </div>
-  );
-}
 
 
 export default function AppShell() {
@@ -65,7 +47,9 @@ export default function AppShell() {
   const [curtain, setCurtain] = useState(true);
   useEffect(() => {
     if (!ready) return;
-    const id = setTimeout(() => setCurtain(false), 250);
+    // everything is loaded and drawn: show 100 % for a moment, then open the lab
+    useLoad.getState().reach("done", 100);
+    const id = setTimeout(() => setCurtain(false), 650);
     return () => clearTimeout(id);
   }, [ready]);
   useEffect(() => {

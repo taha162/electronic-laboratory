@@ -111,7 +111,8 @@ export const KL23001: ModuleDef = {
   ],
   parts: [
     { id: "R1", kind: "R", value: 100, pins: ["a.in", "a.n1"], label: "R1", text: "100Ω" },
-    { id: "VR1", kind: "POT", value: 1000, pins: ["a.gp", "a.w", "a.n1"], label: "VR1", text: "1K", knob: "m.vr1", at: [42, 75] },
+    // the variable resistor is not on the board: patch the KL-21001 VR2 (10KΩ) A/B/C to these three sockets
+    { id: "VR", kind: "EXT", ext: "pot", pins: ["a.gp", "a.w", "a.n1"], label: "VR2", text: "KL-21001", at: [42, 75] },
     { id: "R2", kind: "R", value: 470, pins: ["a.w", "a.p"], label: "R2", text: "470Ω" },
     { id: "CR1", kind: "D", model: "1N4001", pins: ["a.d1a", "a.d1k"], label: "CR1", text: "Si" },
     { id: "CR2", kind: "D", model: "1N34A", pins: ["a.d2a", "a.d2k"], label: "CR2", text: "Ge" },

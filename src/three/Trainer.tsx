@@ -14,7 +14,7 @@ import { MAT, PLASTIC_COLORS, plastic } from "./materials";
 import { canvas, draw7seg, meterFaceTexture, moduleTexture, toTexture, trainerPanelTexture } from "./draw/textures";
 import { anchorWorld, mm, surfaces, useUi } from "./registry";
 import { ringGeometry } from "./draw/shapes";
-import { plasticNormal, wearRoughness } from "./draw/pbr";
+import { plasticNormal } from "./draw/pbr";
 import type { CustomPart } from "@/lab/types";
 import { removeOnRightClick } from "./interaction";
 import { sfx } from "@/audio/audio";
@@ -438,15 +438,8 @@ export function ModulePlate({ mod }: { mod: ModuleDef }) {
   const [W, H] = mod.size;
   const plateMats = useMemo(() => {
     const side = new THREE.MeshStandardMaterial({ color: "#d6d6d0", roughness: 0.5, normalMap: plasticNormal([2, 2]), normalScale: new THREE.Vector2(0.2, 0.2) });
-    const top = new THREE.MeshPhysicalMaterial({
-      map: tex,
-      roughness: 1,
-      roughnessMap: wearRoughness([1.5, 1], 0.4, 0.62, 29),
-      normalMap: plasticNormal([7, 5]),
-      normalScale: new THREE.Vector2(0.16, 0.16),
-      clearcoat: 0.2,
-      clearcoatRoughness: 0.4,
-    });
+    // matte screen-printed board: no sheen washing out the print under the lights
+    const top = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.93, envMapIntensity: 0.5 });
     return [side, side, top, side, side, side];
   }, [tex]);
   const plateRef = useRef<THREE.Mesh>(null);
@@ -646,15 +639,8 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
       <group position={[0, cy + nrm.y, nrm.z]} rotation={[SLOPE, 0, 0]}>
         <mesh ref={panelRef} position={[0, 0.0004, 0]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[mm(TRAINER_W), mm(TRAINER_H)]} />
-          <meshPhysicalMaterial
-            map={panelTex}
-            roughness={1}
-            roughnessMap={wearRoughness([2, 2], 0.42, 0.66, 19)}
-            normalMap={plasticNormal([9, 7])}
-            normalScale={[0.18, 0.18]}
-            clearcoat={0.15}
-            clearcoatRoughness={0.45}
-          />
+          {/* matte printed aluminium: the legends stay readable under the ceiling lights */}
+          <meshStandardMaterial map={panelTex} roughness={0.92} envMapIntensity={0.5} />
         </mesh>
         <PanelRim />
         {interactive ? (
