@@ -120,7 +120,6 @@ export const newId = (p: string) => `${p}${Date.now().toString(36)}${(uid++).toS
 
 interface BenchState extends Snapshot {
   lang: Lang;
-  mode: "explore" | "experiment";
   wireColor: WireColor;
   pending: string | null; // jack where a new wire starts
   heldLead: LeadId | null;
@@ -146,7 +145,6 @@ interface BenchState extends Snapshot {
   repairAll(): void;
   setSound(on: boolean): void;
   setLang(l: Lang): void;
-  setMode(m: "explore" | "experiment"): void;
   setPanel(p: PanelId): void;
   setWireColor(c: WireColor): void;
   setKnob(id: string, v: number): void;
@@ -208,7 +206,6 @@ export const useBench = create<BenchState>()(
       damaged: [],
 
       lang: "ar",
-      mode: "experiment",
       wireColor: "red",
       pending: null,
       heldLead: null,
@@ -257,7 +254,6 @@ export const useBench = create<BenchState>()(
       damage: (id) => set((s) => ((s.damaged ?? []).includes(id) ? {} : { damaged: [...(s.damaged ?? []), id] })),
       repairAll: () => set({ damaged: [] }),
       setLang: (lang) => set({ lang }),
-      setMode: (mode) => set({ mode, pending: null, heldLead: null }),
       setPanel: (panel) => set({ panel: get().panel === panel ? "none" : panel }),
       setWireColor: (wireColor) => set({ wireColor }),
       setKnob: (id, v) => set((s) => ({ knobs: { ...s.knobs, [id]: v } })),

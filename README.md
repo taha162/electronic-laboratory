@@ -1,6 +1,6 @@
 # مختبر الدوائر الإلكترونية الافتراضي · Virtual Electronic Circuits Laboratory
 
-An interactive, photo-referenced 3D replica of the **University of Mosul – College of Engineering electronic circuits laboratory**: the KL-21001 Linear Circuit Lab trainer with its KL-23001/23002/23003 experiment modules, the FNIRSI-1013D tablet oscilloscope and the Pro'sKit MT-1232 multimeter, on the same white bench in front of the beige vertical blinds.
+An interactive, photo-referenced 3D replica of the **University of Mosul – College of Engineering electronic circuits laboratory**: the KL-21001 Linear Circuit Lab trainer with its KL-23001/23002/23003 experiment modules, the FNIRSI-1013D tablet oscilloscope and the Pro'sKit MT-1232 multimeter, on the white bench. The scene holds only what an experiment uses: the bench top, the trainer with its module, the oscilloscope, the multimeter and the cords and probes.
 
 The three instruments are modelled from the lab's own photographs:
 
@@ -29,7 +29,7 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 
 ## What you can do
 
-* **Sit at the bench or walk around the room** – *Experiment* mode seats you in front of the trainer; *Explore* mode lets you walk (W A S D / arrows, Q/E up-down, Shift faster). Drag to look, wheel to lean in (zooms toward the cursor), right-drag to pan. Camera presets: seat, module, generator, supplies, scope, multimeter, room.
+* **Look at the bench** – drag to turn the view, wheel / pinch to zoom, right-drag / two fingers to pan, double-click / double-tap a spot to zoom to it. Views: Seat, Meters, Module, Generator, Supplies, VR1–VR4, Scope, Multimeter.
 * **Wire circuits** – click a socket, then another socket. Neighbouring sockets on a module get a short-circuit clip, everything else a banana-plug patch cord in the selected colour. Click a cord to select it; Delete / double-click / right-click removes it.
 * **Use the instruments** – click a scope probe, ground clip or multimeter pen to pick it up, then click a socket to clip it on. Turn knobs by dragging or with the wheel (Shift = fine). Power switch on the right side of the KL-21001.
 * **FNIRSI oscilloscope** – the 3D screen is a touch screen: RUN/STOP, AUTO SET, T/V cursors, MEASURE, SAVE PIC (PNG), SAVE WAVE (CSV); CTRL (or clicking the screen) opens the full control panel (V/div, coupling AC/DC/GND, position, time/div, trigger source/edge/level/mode auto-normal-single). Measurements: Vpp, Vmax, Vmin, Vavg, Vrms, frequency, period.
@@ -39,7 +39,6 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 * **Real consequences** – supplies fold back into current limit on a short (the DC meter collapses to 0 V); a part dissipating above its rating smokes and, if left, burns out (open circuit, scorch mark) until you press *Replace*.
 * **Hear it** – wire a signal to the trainer's SPEAKER sockets and you hear the simulated voltage (clipping, rectification… all audible). Plugs, clips, knobs, switches and the scope have synthesised foley; the room has its fluorescent-ballast and transformer hum.
 * **Beyond reality** – *X-ray* shows the live voltage of every connected node and colours cords by potential; *Guide me* puts a pulsing ring and arrow on the exact sockets of the next connection with a ghost cord; Ctrl+Z / Ctrl+Y undo/redo the wiring.
-* **Photo mode** – hides the UI and captures a PNG. The whole scene stays in sharp focus (no depth-of-field blur, grain or haze); a final clarity pass (contrast-adaptive sharpening + dehaze) keeps the panel print crisp.
 
 ## Architecture
 

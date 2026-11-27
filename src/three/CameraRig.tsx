@@ -6,7 +6,6 @@ import { CameraControls } from "@react-three/drei";
 import CameraControlsImpl from "camera-controls";
 import { useBench } from "@/store/bench";
 import { useUi } from "./registry";
-import { ROOM } from "./Room";
 
 type V3 = [number, number, number];
 /**
@@ -46,8 +45,6 @@ export const CAMERA_PRESETS: Record<string, () => Preset> = {
     const p = useBench.getState().devices.dmm;
     return { target: [p.x, 0.785, p.z - 0.005], el: 56, elP: 64, az: p.rot, w: 0.1, h: 0.17 };
   },
-  overview: () => ({ pos: [4.6, 2.35, 5.4], target: [1.6, 0.85, 0.6] }),
-  door: () => ({ pos: [5.4, 1.62, 5.6], target: [0.3, 0.95, 0.0] }),
 };
 
 /** screen space taken by the interface bars (px): the framed region avoids them */
@@ -84,19 +81,15 @@ export function resolvePreset(p: Preset, camera: THREE.PerspectiveCamera, size: 
 /** current orbit target (focus point for depth of field) */
 export const camTarget = new THREE.Vector3(0, 0.8, -0.06);
 
-let entered = false;
-
 export function CameraRig() {
   const ref = useRef<CameraControlsImpl>(null);
-  const mode = useBench((s) => s.mode);
   const dragging = useUi((s) => s.dragging);
   const camCmd = useUi((s) => s.camCmd);
-  const keys = useRef<Record<string, boolean>>({});
 
   const get = useThree((s) => s.get);
   const lastView = useRef("seat");
   const go = (name: string, smooth = true, slow = false) => {
-    if (name !== "door") lastView.current = name;
+    lastView.current = name;
     const preset = CAMERA_PRESETS[name]?.();
     const c = ref.current;
     if (!preset || !c) return;
@@ -108,19 +101,10 @@ export function CameraRig() {
     });
   };
 
-  // cinematic entrance: from the lab door to the student's seat (once per session)
+  // start at the student's seat
   const ready = useUi((s) => s.ready);
   useEffect(() => {
-    if (!ready) return;
-    if (entered || navigator.webdriver) {
-      go("seat", false);
-      entered = true;
-      return;
-    }
-    entered = true;
-    go("door", false);
-    const id = setTimeout(() => go("seat", true, true), 450);
-    return () => clearTimeout(id);
+    if (ready) go("seat", false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
   useEffect(() => {
@@ -168,7 +152,7 @@ export function CameraRig() {
   }, []);
   const focusAt = (cx: number, cy: number) => {
     const c = ref.current;
-    if (!c || useBench.getState().mode !== "experiment") return;
+    if (!c) return;
     const { camera, scene, gl } = get();
     const r = gl.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1);
@@ -195,65 +179,8 @@ export function CameraRig() {
     c.smoothTime = 0.3;
     c.setLookAt(np.x, np.y, np.z, hit.point.x, hit.point.y, hit.point.z, true);
   };
-  const firstMode = useRef(true);
-  useEffect(() => {
-    const c = ref.current;
-    if (!c) return;
-    if (mode === "experiment") {
-      c.minDistance = 0.12;
-      c.maxDistance = 2.2;
-      if (!firstMode.current) go("seat");
-    } else {
-      c.minDistance = 0.1;
-      c.maxDistance = 9;
-    }
-    firstMode.current = false;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if ((e.target as HTMLElement)?.closest?.("input,textarea,select")) return;
-      keys.current[e.key.toLowerCase()] = true;
-    };
-    const up = (e: KeyboardEvent) => (keys.current[e.key.toLowerCase()] = false);
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-    };
-  }, []);
-
-  const tmp = new THREE.Vector3();
-  useFrame((_, dt) => {
-    const c = ref.current;
-    if (!c) return;
-    c.getTarget(camTarget);
-    const k = keys.current;
-    const speed = (k["shift"] ? 2.4 : 1.1) * dt;
-    let f = 0,
-      r = 0,
-      u = 0;
-    if (k["w"] || k["arrowup"]) f += speed;
-    if (k["s"] || k["arrowdown"]) f -= speed;
-    if (k["d"] || k["arrowright"]) r += speed;
-    if (k["a"] || k["arrowleft"]) r -= speed;
-    if (k["e"] || k["pageup"]) u += speed;
-    if (k["q"] || k["pagedown"]) u -= speed;
-    if (f || r || u) {
-      c.forward(f, false);
-      c.truck(r, 0, false);
-      c.elevate(u, false);
-      // keep inside the room
-      c.getPosition(tmp);
-      const cl = new THREE.Vector3(
-        THREE.MathUtils.clamp(tmp.x, ROOM.x0 + 0.15, ROOM.x1 - 0.15),
-        THREE.MathUtils.clamp(tmp.y, 0.3, ROOM.h - 0.15),
-        THREE.MathUtils.clamp(tmp.z, ROOM.z0 + 0.2, ROOM.z1 - 0.15),
-      );
-      if (!cl.equals(tmp)) c.setPosition(cl.x, cl.y, cl.z, false);
-    }
+  useFrame(() => {
+    ref.current?.getTarget(camTarget);
   });
 
   return (
