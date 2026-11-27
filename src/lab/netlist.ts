@@ -8,7 +8,7 @@ import { BJTS, DIODES, OPAMPS, opampMacro } from "@/sim/models";
 import type { CustomPart, PartDef } from "./types";
 import { TRAINER_JACKS, VR_VALUES, adjVoltage, fgAmplitudeVpp, fgFrequency } from "./trainer";
 import { getModule } from "./modules";
-import type { Snapshot } from "@/store/bench";
+import type { DmmMode, Snapshot } from "@/store/bench";
 
 export const AC_FREQ = 50; // mains frequency (Iraq)
 /** current limits of the KL-21001 supplies (A) — above this the supply folds back */
@@ -241,8 +241,7 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
   uf.union("osc.ch2g", EARTH);
   uf.add("osc.ch1");
   uf.add("osc.ch2");
-  uf.add("dmm.v");
-  uf.add("dmm.com");
+  for (const l of ["dmm.v", "dmm.com", "dmm2.v", "dmm2.com"]) uf.add(l);
 
   // count of attachments per jack for "is this source used" detection
   const degree = new Map<string, number>();
@@ -415,28 +414,33 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
   els.push({ t: "R", id: "osc.r2", a: nodeOf("osc.ch2"), b: 0, r: 1e6 });
   probes.push({ id: "ch1", kind: "v", a: nodeOf("osc.ch1"), b: 0 }, { id: "ch2", kind: "v", a: nodeOf("osc.ch2"), b: 0 });
 
-  const dv = nodeOf("dmm.v"),
-    dc = nodeOf("dmm.com");
-  switch (s.dmmMode) {
-    case "dcv":
-    case "acv":
-      els.push({ t: "R", id: "dmm.r", a: dv, b: dc, r: 10e6 });
-      probes.push({ id: "dmm", kind: "v", a: dv, b: dc });
-      break;
-    case "dca":
-    case "aca":
-      els.push({ t: "AM", id: "dmm.am", a: dv, b: dc, r: 4.7 }); // mA-range shunt (burden)
-      probes.push({ id: "dmm", kind: "i", el: "dmm.am" });
-      break;
-    case "ohm":
-      els.push({ t: "V", id: "dmm.src", a: dv, b: dc, w: { kind: "dc", v: 0.6 }, rs: 1000 });
-      probes.push({ id: "dmm", kind: "v", a: dv, b: dc }, { id: "dmm.i", kind: "i", el: "dmm.src" });
-      break;
-    case "diode":
-      els.push({ t: "V", id: "dmm.src", a: dv, b: dc, w: { kind: "dc", v: 3 }, rs: 2200 });
-      probes.push({ id: "dmm", kind: "v", a: dv, b: dc });
-      break;
-  }
+  // the multimeters: a 10 MΩ voltmeter, a mA shunt, or a test source for Ω / diode
+  const dmm = (p: "dmm" | "dmm2", mode: DmmMode) => {
+    const dv = nodeOf(`${p}.v`),
+      dc = nodeOf(`${p}.com`);
+    switch (mode) {
+      case "dcv":
+      case "acv":
+        els.push({ t: "R", id: `${p}.r`, a: dv, b: dc, r: 10e6 });
+        probes.push({ id: p, kind: "v", a: dv, b: dc });
+        break;
+      case "dca":
+      case "aca":
+        els.push({ t: "AM", id: `${p}.am`, a: dv, b: dc, r: 4.7 }); // mA-range shunt (burden)
+        probes.push({ id: p, kind: "i", el: `${p}.am` });
+        break;
+      case "ohm":
+        els.push({ t: "V", id: `${p}.src`, a: dv, b: dc, w: { kind: "dc", v: 0.6 }, rs: 1000 });
+        probes.push({ id: p, kind: "v", a: dv, b: dc }, { id: `${p}.i`, kind: "i", el: `${p}.src` });
+        break;
+      case "diode":
+        els.push({ t: "V", id: `${p}.src`, a: dv, b: dc, w: { kind: "dc", v: 3 }, rs: 2200 });
+        probes.push({ id: p, kind: "v", a: dv, b: dc });
+        break;
+    }
+  };
+  dmm("dmm", s.dmmMode);
+  dmm("dmm2", s.dmm2Mode ?? "dca");
 
   // nodes the student touched (cords, clips, instrument leads)
   const userNodes = new Set<number>();
@@ -455,6 +459,7 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
     s.knobs,
     s.power,
     s.dmmMode,
+    s.dmm2Mode,
     s.customParts.map((p) => [p.kind, p.value, p.model, p.gpins]),
     [...damaged],
     [...limited],

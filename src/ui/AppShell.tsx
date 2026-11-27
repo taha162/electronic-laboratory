@@ -3,7 +3,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { useBench } from "@/store/bench";
 import { useSimulationDriver, useSim } from "@/lab/simController";
-import { useUi } from "@/three/registry";
+import { useUi } from "./uiState";
 import { applyStep } from "@/lab/experimentActions";
 import { EXPERIMENTS } from "@/lab/experiments";
 import { TopBar } from "./TopBar";
@@ -22,7 +22,7 @@ import { Alerts } from "./Alerts";
 import { useT } from "./i18n";
 import { installAudioUnlock } from "@/audio/audio";
 
-const LabScene = dynamic(() => import("@/three/Scene"), {
+const LabScene = dynamic(() => import("@/bench2d/Bench2D"), {
   ssr: false,
   loading: () => <Loading />,
 });

@@ -7,7 +7,7 @@ import { EXPERIMENTS, EXPERIMENT_BY_ID, type TableDef } from "@/lab/experiments"
 import { applyStep, checkStep, type CheckResult } from "@/lab/experimentActions";
 import { getModule } from "@/lab/modules";
 import { useT } from "./i18n";
-import { useUi } from "@/three/registry";
+import { useUi } from "./uiState";
 
 function Panel({ children, onClose, title }: { children: React.ReactNode; onClose: () => void; title: string }) {
   return (

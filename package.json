@@ -2,7 +2,7 @@
   "name": "electronic-laboratory",
   "version": "0.1.0",
   "private": true,
-  "description": "Photoreal interactive 3D replica of the University of Mosul electronic circuits laboratory with a real circuit simulator",
+  "description": "Interactive 2D replica of the University of Mosul electronic circuits laboratory bench with a real circuit simulator",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,15 +11,9 @@
     "test:sim": "tsx scripts/sim-test.ts"
   },
   "dependencies": {
-    "@react-three/drei": "10.7.9",
-    "@react-three/fiber": "9.8.2",
-    "@react-three/postprocessing": "3.2.2",
-    "camera-controls": "3.1.2",
     "next": "15.5.29",
-    "postprocessing": "^6.37.0",
     "react": "19.1.10",
     "react-dom": "19.1.10",
-    "three": "0.180.0",
     "zustand": "5.1.0"
   },
   "devDependencies": {
@@ -27,7 +21,6 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
-    "@types/three": "0.180.0",
     "tailwindcss": "4.3.5",
     "tsx": "4.23.15",
     "typescript": "5.9.3"

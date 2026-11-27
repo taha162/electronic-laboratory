@@ -1,7 +1,7 @@
 "use client";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { CustomPart, LeadId, PartKind, Wire, WireColor } from "@/lab/types";
+import type { CustomPart, DmmId, LeadId, PartKind, Wire, WireColor } from "@/lab/types";
 import { TRAINER_KNOBS } from "@/lab/trainer";
 import { MODULE_BY_ID, MODULE_KNOB_DEFAULTS, getModule } from "@/lab/modules";
 import { EXPERIMENT_BY_ID } from "@/lab/experiments";
@@ -44,6 +44,8 @@ export interface Snapshot {
   power: boolean;
   scope: ScopeSettings;
   dmmMode: DmmMode;
+  /** second multimeter (experiments that read two quantities at once) */
+  dmm2Mode?: DmmMode;
   customParts: CustomPart[];
   /** burnt-out components (global element ids), behave as open circuits until replaced */
   damaged?: string[];
@@ -109,6 +111,8 @@ export const DEFAULT_LEADS: Record<LeadId, string | null> = {
   "osc.ch2g": null,
   "dmm.v": null,
   "dmm.com": null,
+  "dmm2.v": null,
+  "dmm2.com": null,
 };
 
 export const DEFAULT_DEVICES: Record<"osc" | "dmm", DevicePose> = {
@@ -160,7 +164,7 @@ interface BenchState extends Snapshot {
   pickLead(l: LeadId): void;
   attachLead(l: LeadId, jack: string | null): void;
   setScope(fn: (s: ScopeSettings) => ScopeSettings): void;
-  setDmmMode(m: DmmMode): void;
+  setDmmMode(m: DmmMode, which?: DmmId): void;
   moveDevice(d: "osc" | "dmm", p: Partial<DevicePose>): void;
   setExperiment(id: string | null): void;
   setStep(n: number): void;
@@ -218,6 +222,7 @@ export const useBench = create<BenchState>()(
       power: true,
       scope: DEFAULT_SCOPE,
       dmmMode: "dcv",
+      dmm2Mode: "dca",
       customParts: [],
       damaged: [],
 
@@ -355,7 +360,7 @@ export const useBench = create<BenchState>()(
       attachLead: (l, jack) =>
         set((s) => ({ ...(s.leads[l] !== jack && jack ? hist(s) : {}), leads: { ...s.leads, [l]: jack }, heldLead: null })),
       setScope: (fn) => set((s) => ({ scope: fn(s.scope) })),
-      setDmmMode: (dmmMode) => set({ dmmMode }),
+      setDmmMode: (m, which = "dmm") => set(which === "dmm2" ? { dmm2Mode: m } : { dmmMode: m }),
       moveDevice: (d, p) => set((s) => ({ devices: { ...s.devices, [d]: { ...s.devices[d], ...p } } })),
       setExperiment: (experimentId) => set({ experimentId, step: 0 }),
       setStep: (step) => set({ step }),
@@ -457,6 +462,7 @@ export const useBench = create<BenchState>()(
         power: s.power,
         scope: s.scope,
         dmmMode: s.dmmMode,
+        dmm2Mode: s.dmm2Mode,
         customParts: s.customParts,
         damaged: s.damaged,
         lang: s.lang,
@@ -491,6 +497,7 @@ export function snapshotOf(s: Snapshot): Snapshot {
     power: s.power,
     scope: s.scope,
     dmmMode: s.dmmMode,
+    dmm2Mode: s.dmm2Mode ?? "dca",
     customParts: s.customParts,
     damaged: s.damaged ?? [],
   };

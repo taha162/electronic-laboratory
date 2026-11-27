@@ -19,6 +19,7 @@ export function applyStep(module: string, step: StepDef) {
   if (step.leads) patch.leads = { ...useBench.getState().leads, ...(step.leads as Record<LeadId, string | null>) };
   if (step.knobs) patch.knobs = { ...useBench.getState().knobs, ...step.knobs };
   if (step.dmmMode) patch.dmmMode = step.dmmMode;
+  if (step.dmm2Mode) patch.dmm2Mode = step.dmm2Mode;
   if (step.scope) {
     const sc = useBench.getState().scope;
     const ch = step.scope.ch;
@@ -58,8 +59,10 @@ function jackLabel(id: string, module: string): string {
     "osc.ch2": "CH2 probe",
     "osc.ch1g": "CH1 ground clip",
     "osc.ch2g": "CH2 ground clip",
-    "dmm.v": "multimeter red lead",
-    "dmm.com": "multimeter COM lead",
+    "dmm.v": "multimeter 1 red lead",
+    "dmm.com": "multimeter 1 COM lead",
+    "dmm2.v": "multimeter 2 red lead",
+    "dmm2.com": "multimeter 2 COM lead",
   };
   return leadNames[id] ?? id;
 }
@@ -84,7 +87,8 @@ export function checkStep(module: string, step: StepDef): CheckResult {
       pairs.push([lead, jack]);
     }
   }
-  if (step.dmmMode && s.dmmMode !== step.dmmMode) missing.push(`multimeter function: ${step.dmmMode.toUpperCase()}`);
+  if (step.dmmMode && s.dmmMode !== step.dmmMode) missing.push(`multimeter 1 function: ${step.dmmMode.toUpperCase()}`);
+  if (step.dmm2Mode && (s.dmm2Mode ?? "dca") !== step.dmm2Mode) missing.push(`multimeter 2 function: ${step.dmm2Mode.toUpperCase()}`);
   return { ok: missing.length === 0, missing, pairs };
 }
 

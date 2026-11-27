@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { MODULES } from "@/lab/modules";
 import type { WireColor } from "@/lab/types";
-import { PLASTIC_COLORS } from "@/three/materials";
-import { useUi } from "@/three/registry";
+import { PLASTIC_COLORS } from "@/draw/colors";
+import { useUi } from "./uiState";
 import { useT } from "./i18n";
 import { usePhone } from "./usePhone";
 
@@ -26,7 +26,7 @@ export function Dock() {
   const { phone, landscape } = usePhone();
   const go = (v: string) => {
     setView(v);
-    useUi.getState().cam(v);
+    useUi.getState().view(v);
   };
   const swatch = (c: WireColor, size = "h-6 w-6") => (
     <button

@@ -4,13 +4,12 @@ import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { EXPERIMENT_BY_ID } from "@/lab/experiments";
 import { useT } from "./i18n";
-import { useUi } from "@/three/registry";
+import { useUi } from "./uiState";
 import { usePhone } from "./usePhone";
 
 export function TopBar() {
   const { t, lang } = useT();
   const panel = useBench((s) => s.panel);
-  const quality = useBench((s) => s.quality);
   const expId = useBench((s) => s.experimentId);
   const step = useBench((s) => s.step);
   const sound = useBench((s) => s.sound);
@@ -26,9 +25,6 @@ export function TopBar() {
       </button>
       <button className="btn" data-on={panel === "help"} onClick={() => st.setPanel("help")}>
         <Icon name="help" /> {phone && <span>{t("help")}</span>}
-      </button>
-      <button className="btn" title={t("quality")} onClick={() => st.setQuality(quality === "high" ? "low" : "high")}>
-        <Icon name="gauge" /> {quality === "high" ? t("high") : t("low")}
       </button>
       <button className="btn font-semibold" onClick={() => st.setLang(lang === "ar" ? "en" : "ar")}>
         {lang === "ar" ? "EN" : "عربي"}
