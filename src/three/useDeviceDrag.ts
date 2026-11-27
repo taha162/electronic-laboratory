@@ -9,9 +9,8 @@ const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.762);
 const hit = new THREE.Vector3();
 
 /**
- * Drag a device across the bench top. In explore mode a plain drag moves it;
- * in experiment mode hold Alt (or use the move handle) to move.
- * Rotating: drag with Shift.
+ * Drag a device across the bench top with Alt held; Shift-drag rotates it.
+ * (A plain drag orbits the camera, a tap uses the device's own controls.)
  */
 export function useDeviceDrag(id: "osc" | "dmm", _ref: React.RefObject<THREE.Group | null>) {
   const st = useRef<{ dx: number; dz: number; x: number; rot: number; rotate: boolean } | null>(null);
@@ -19,7 +18,7 @@ export function useDeviceDrag(id: "osc" | "dmm", _ref: React.RefObject<THREE.Gro
   return {
     onPointerDown: (e: ThreeEvent<PointerEvent>) => {
       const s = useBench.getState();
-      const movable = s.mode === "explore" || e.altKey || e.shiftKey;
+      const movable = e.altKey || e.shiftKey;
       if (!movable || e.button !== 0) return;
       if (!e.ray.intersectPlane(plane, hit)) return;
       e.stopPropagation();

@@ -42,19 +42,15 @@ interface UiState {
   hover: { id: string; label: string } | null;
   dragging: boolean;
   camCmd: { name: string; t: number; slow?: boolean } | null;
-  /** photo mode: UI hidden, depth of field, film grain */
-  photo: boolean;
   /** first frames rendered */
   ready: boolean;
   /** "X-ray": show node voltages and colour cords by potential */
   insight: boolean;
   /** highlight the sockets of the next missing connection of the current step */
   guide: boolean;
-  /** UI hidden (photo mode) */
   setHover(h: UiState["hover"]): void;
   setDragging(d: boolean): void;
   cam(name: string, slow?: boolean): void;
-  setPhoto(p: boolean): void;
   setReady(r: boolean): void;
   setInsight(v: boolean): void;
   setGuide(v: boolean): void;
@@ -63,14 +59,12 @@ export const useUi = create<UiState>((set) => ({
   hover: null,
   dragging: false,
   camCmd: null,
-  photo: false,
   ready: false,
   insight: false,
   guide: true,
   setHover: (hover) => set({ hover }),
   setDragging: (dragging) => set({ dragging }),
   cam: (name, slow) => set({ camCmd: { name, t: Date.now(), slow } }),
-  setPhoto: (photo) => set({ photo }),
   setReady: (ready) => set({ ready }),
   setInsight: (insight) => set({ insight }),
   setGuide: (guide) => set({ guide }),

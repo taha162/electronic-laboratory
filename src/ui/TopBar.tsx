@@ -8,7 +8,6 @@ import { usePhone } from "./usePhone";
 
 export function TopBar() {
   const { t, lang } = useT();
-  const mode = useBench((s) => s.mode);
   const panel = useBench((s) => s.panel);
   const quality = useBench((s) => s.quality);
   const expId = useBench((s) => s.experimentId);
@@ -23,9 +22,6 @@ export function TopBar() {
     <>
       <button className="btn" data-on={sound} title={t("sound")} onClick={() => st.setSound(!sound)}>
         {sound ? "🔊" : "🔇"} {phone && <span>{t("sound")}</span>}
-      </button>
-      <button className="btn" title={t("photo")} onClick={() => useUi.getState().setPhoto(true)}>
-        📷 {phone && <span>{t("photo")}</span>}
       </button>
       <button className="btn" data-on={panel === "help"} onClick={() => st.setPanel("help")}>
         ? {phone && <span>{t("help")}</span>}
@@ -50,13 +46,6 @@ export function TopBar() {
             </div>
           </div>
         )}
-        <div className={`flex rounded-lg bg-white/5 p-0.5 ${phone ? "" : "ms-2"}`}>
-          {(["experiment", "explore"] as const).map((m) => (
-            <button key={m} className={`btn !border-0 ${phone ? "!px-2 !py-1" : "!py-1.5"}`} data-on={mode === m} onClick={() => st.setMode(m)}>
-              {t(m)}
-            </button>
-          ))}
-        </div>
       </div>
       <div className={`glass pointer-events-auto relative flex items-center rounded-xl ${phone ? "gap-1 px-1.5 py-1.5" : "gap-1.5 px-2 py-1.5"}`}>
         <button className="btn" data-on={panel === "experiment"} onClick={() => st.setPanel("experiment")}>

@@ -1,4 +1,5 @@
 "use client";
+import { saveFile } from "./download";
 import { useRef, useState } from "react";
 import { useBench, type SavedExperiment } from "@/store/bench";
 import { EXPERIMENT_BY_ID } from "@/lab/experiments";
@@ -37,10 +38,7 @@ export function SavesPanel() {
           className="btn"
           onClick={() => {
             const blob = new Blob([JSON.stringify({ format: "mosul-elab/1", saves }, null, 2)], { type: "application/json" });
-            const a = document.createElement("a");
-            a.href = URL.createObjectURL(blob);
-            a.download = `electronics-lab-saves-${Date.now()}.json`;
-            a.click();
+            saveFile(blob, `electronics-lab-saves-${Date.now()}.json`);
           }}
         >
           ⤓ {t("exportJ")}

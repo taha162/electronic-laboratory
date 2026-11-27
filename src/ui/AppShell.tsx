@@ -49,29 +49,6 @@ function LoadingScreen({ visible }: { visible: boolean }) {
   );
 }
 
-function PhotoBar() {
-  const { t } = useT();
-  return (
-    <div className="pointer-events-auto absolute inset-x-0 bottom-4 z-40 flex justify-center gap-2">
-      <button
-        className="glass btn !rounded-full !px-5 !py-2.5"
-        onClick={() => {
-          const c = document.querySelector("canvas");
-          if (!c) return;
-          const a = document.createElement("a");
-          a.href = (c as HTMLCanvasElement).toDataURL("image/png");
-          a.download = `electronics-lab-${Date.now()}.png`;
-          a.click();
-        }}
-      >
-        ◉ {t("capturePhoto")}
-      </button>
-      <button className="glass btn !rounded-full !px-4 !py-2.5" onClick={() => useUi.getState().setPhoto(false)}>
-        ✕ {t("exitPhoto")}
-      </button>
-    </div>
-  );
-}
 
 export default function AppShell() {
   useSimulationDriver();
@@ -84,7 +61,6 @@ export default function AppShell() {
     document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
   }, [lang]);
   const ready = useUi((s) => s.ready);
-  const photo = useUi((s) => s.photo);
   const [curtain, setCurtain] = useState(true);
   useEffect(() => {
     if (!ready) return;
@@ -103,7 +79,7 @@ export default function AppShell() {
   return (
     <main className="fixed inset-0 select-none">
       <div className="absolute inset-0">{hydrated && <LabScene />}</div>
-      {hydrated && !photo && (
+      {hydrated && (
         <>
           <TopBar />
           <Readings />
@@ -121,7 +97,6 @@ export default function AppShell() {
           {ready && !curtain && <Welcome />}
         </>
       )}
-      {photo && <PhotoBar />}
       <LoadingScreen visible={curtain} />
     </main>
   );

@@ -148,31 +148,7 @@ export function wearRoughness(repeat: [number, number] = [1, 1], lo = 0.45, hi =
   });
 }
 
-/** woven fabric of the vertical blinds */
-export function fabricNormal(repeat: [number, number] = [1, 1]) {
-  return cached(`fabricN-${repeat}`, () => {
-    const S = 256;
-    const h = new Float32Array(S * S);
-    const n = fbm(S, 64, 2, 3, 0.5);
-    for (let y = 0; y < S; y++)
-      for (let x = 0; x < S; x++) {
-        const wx = Math.sin((x / S) * Math.PI * 2 * 48) * 0.5 + 0.5;
-        const wy = Math.sin((y / S) * Math.PI * 2 * 64) * 0.5 + 0.5;
-        const over = ((Math.floor((x / S) * 48) + Math.floor((y / S) * 64)) & 1) === 0;
-        h[y * S + x] = (over ? wx : wy) * 0.8 + n[y * S + x] * 0.4;
-      }
-    return dataTex(normalFromHeight(h, S, 2.2), repeat);
-  });
-}
 
-/** painted plaster wall */
-export function plasterNormal(repeat: [number, number] = [1, 1]) {
-  return cached(`plasterN-${repeat}`, () => {
-    const S = 512;
-    const h = fbm(S, 16, 6, 21, 0.55);
-    return dataTex(normalFromHeight(h, S, 1.2), repeat);
-  });
-}
 
 /** laminate bench top: micro-stipple + faint wipe marks in the roughness */
 export function laminateMaps() {
@@ -207,21 +183,6 @@ export function laminateMaps() {
   };
 }
 
-/** polished terrazzo: chips are glossier than the matrix */
-export function terrazzoMaps() {
-  return {
-    normal: cached("terrN", () => {
-      const S = 512;
-      const h = fbm(S, 64, 4, 63, 0.5);
-      return dataTex(normalFromHeight(h, S, 0.6), [20, 16]);
-    }),
-    rough: cached("terrR", () => {
-      const S = 512;
-      const n = fbm(S, 8, 5, 91, 0.6);
-      return dataTex(grayCanvas(n, S, 0.22, 0.5), [6, 5]);
-    }),
-  };
-}
 
 /** brushed / knurled metal */
 export function brushedNormal(repeat: [number, number] = [1, 1]) {

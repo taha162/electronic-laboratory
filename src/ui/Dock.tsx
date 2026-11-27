@@ -9,7 +9,7 @@ import { useT } from "./i18n";
 import { usePhone } from "./usePhone";
 
 const COLORS: WireColor[] = ["red", "black", "yellow", "blue", "green", "white", "greenyellow"];
-const VIEWS = ["seat", "meters", "module", "generator", "power", "pots", "scope", "dmm", "overview"] as const;
+const VIEWS = ["seat", "meters", "module", "generator", "power", "pots", "scope", "dmm"] as const;
 
 export function Dock() {
   const { t, lang } = useT();

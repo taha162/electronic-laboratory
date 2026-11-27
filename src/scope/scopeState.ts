@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import { useBench, SEQ_TDIV, SEQ_VDIV, type ScopeSettings } from "@/store/bench";
 import { useSim } from "@/lab/simController";
+import { canvasBlob, saveFile } from "@/ui/download";
 import { acquire, DIV_X, KEYS, renderScope, SCREEN_H, SCREEN_W, type ScopeFrame } from "./renderScope";
 import type { SimResult } from "@/sim/types";
 
@@ -83,10 +84,7 @@ export function saveScreenshot() {
   c.width = SCREEN_W * 2;
   c.height = SCREEN_H * 2;
   drawScopeTo(c.getContext("2d")!, performance.now() / 1000);
-  const a = document.createElement("a");
-  a.href = c.toDataURL("image/png");
-  a.download = `FNIRSI_${new Date().toISOString().replace(/[:.]/g, "-")}.png`;
-  a.click();
+  canvasBlob(c).then((b) => saveFile(b, `FNIRSI_${new Date().toISOString().replace(/[:.]/g, "-")}.png`));
 }
 
 export function saveWaveCsv() {
@@ -94,11 +92,7 @@ export function saveWaveCsv() {
   if (!f.t) return;
   const rows = ["t_s,ch1_V,ch2_V"];
   for (let i = 0; i < f.t.length; i++) rows.push(`${f.t[i].toExponential(6)},${f.v[0]?.[i]?.toFixed(5) ?? ""},${f.v[1]?.[i]?.toFixed(5) ?? ""}`);
-  const blob = new Blob([rows.join("\n")], { type: "text/csv" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `FNIRSI_wave_${Date.now()}.csv`;
-  a.click();
+  saveFile(new Blob([rows.join("\n")], { type: "text/csv" }), `FNIRSI_wave_${Date.now()}.csv`);
 }
 
 /** handle a touch on the scope screen (native 800 x 480 pixel coordinates) — returns true if consumed */

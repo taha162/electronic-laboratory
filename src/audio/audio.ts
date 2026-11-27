@@ -9,7 +9,7 @@ import { useBench } from "@/store/bench";
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
-let ambience: { hum: GainNode; tone: GainNode; trafo: GainNode } | null = null;
+let ambience: { trafo: GainNode } | null = null;
 let spk: { src: AudioBufferSourceNode | null; gain: GainNode; key: string } | null = null;
 
 function enabled() {
@@ -45,33 +45,6 @@ function noiseBuffer(c: AudioContext, seconds: number) {
 function startAmbience() {
   if (!ctx || !master || ambience) return;
   const c = ctx;
-  // room tone: brown-ish noise, very low
-  const tone = c.createGain();
-  tone.gain.value = 0.012;
-  const nsrc = c.createBufferSource();
-  nsrc.buffer = noiseBuffer(c, 4);
-  nsrc.loop = true;
-  const lp = c.createBiquadFilter();
-  lp.type = "lowpass";
-  lp.frequency.value = 420;
-  nsrc.connect(lp).connect(tone).connect(master);
-  nsrc.start();
-  // fluorescent ballast hum (100 Hz + harmonics)
-  const hum = c.createGain();
-  hum.gain.value = 0.006;
-  for (const [f, a] of [
-    [100, 1],
-    [200, 0.35],
-    [300, 0.12],
-  ]) {
-    const o = c.createOscillator();
-    o.frequency.value = f;
-    const g = c.createGain();
-    g.gain.value = a;
-    o.connect(g).connect(hum);
-    o.start();
-  }
-  hum.connect(master);
   // KL-21001 mains transformer hum (only when powered)
   const trafo = c.createGain();
   trafo.gain.value = 0;
@@ -89,7 +62,7 @@ function startAmbience() {
     o.start();
   }
   trafo.connect(master);
-  ambience = { hum, tone, trafo };
+  ambience = { trafo };
 }
 
 export function setTrainerPowered(on: boolean) {
