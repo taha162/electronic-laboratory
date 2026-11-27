@@ -20,11 +20,31 @@ import { Clarity } from "./fx/Clarity";
 
 if (typeof window !== "undefined") RectAreaLightUniformsLib.init();
 
+/**
+ * In the light renderer (phones) the shadow map is refreshed a few times a
+ * second instead of every frame — it only changes when something on the bench moves.
+ */
+function ShadowThrottle() {
+  const gl = useThree((s) => s.gl);
+  const quality = useBench((s) => s.quality);
+  const n = useRef(0);
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = quality === "high";
+    gl.shadowMap.needsUpdate = true;
+  }, [gl, quality]);
+  useFrame(() => {
+    if (quality === "high") return;
+    if (++n.current % 12 === 0) gl.shadowMap.needsUpdate = true;
+  });
+  return null;
+}
+
 function Lights() {
   const sun = useRef<THREE.DirectionalLight>(null);
+  const light = useBench((s) => s.quality) !== "high";
   return (
     <>
-      <hemisphereLight args={["#f4f7ff", "#b9aa8e", 0.45]} />
+      <hemisphereLight args={["#f4f7ff", "#b9aa8e", light ? 0.95 : 0.45]} />
       {/* daylight from the window wall (behind the equipment, as in the photographs) */}
       <directionalLight
         ref={sun}
@@ -32,7 +52,7 @@ function Lights() {
         intensity={1.42}
         color="#fff6ea"
         castShadow
-        shadow-mapSize={[2048, 2048]}
+        shadow-mapSize={light ? [1024, 1024] : [2048, 2048]}
         shadow-bias={-0.00025}
         shadow-normalBias={0.015}
         shadow-radius={4}
@@ -46,6 +66,25 @@ function Lights() {
       >
         <object3D attach="target" position={[0, DESK_Y, 0.05]} />
       </directionalLight>
+      {light ? (
+        <>
+          {/* light renderer: the window band and ceiling tubes as two cheap directional fills */}
+          <directionalLight position={[0.4, 2.2, -3]} intensity={0.85} color="#f3f6ff" />
+          <directionalLight position={[0.3, 4, 1.6]} intensity={0.75} color="#f8fbff" />
+        </>
+      ) : (
+        <AreaLights />
+      )}
+      {/* soft overhead fill so the bench never looks flat-black */}
+      <spotLight position={[0.05, 2.9, 0.35]} angle={0.75} penumbra={1} intensity={6} distance={5} decay={2} color="#fffaf2" />
+    </>
+  );
+}
+
+/** physically based area lights (window band, fluorescent tubes) — full renderer only */
+function AreaLights() {
+  return (
+    <>
       {/* the bright, blind-diffused window band as a big soft area light */}
       <rectAreaLight position={[3.1, 1.78, -0.5]} rotation={[0, Math.PI, 0]} width={8.6} height={1.75} intensity={2.4} color="#f3f6ff" />
       {/* fluorescent ceiling fixtures (cool white) */}
@@ -58,8 +97,6 @@ function Lights() {
       ].map(([x, z], i) => (
         <rectAreaLight key={i} position={[x, 2.94, z]} rotation={[-Math.PI / 2, 0, 0]} width={1.2} height={0.3} intensity={7} color="#f8fbff" />
       ))}
-      {/* soft overhead fill so the bench never looks flat-black */}
-      <spotLight position={[0.05, 2.9, 0.35]} angle={0.75} penumbra={1} intensity={6} distance={5} decay={2} color="#fffaf2" />
     </>
   );
 }
@@ -148,6 +185,8 @@ function GlSettings() {
         return { x: r.left + ((p.x + 1) / 2) * r.width, y: r.top + ((1 - p.y) / 2) * r.height };
       },
       scene,
+      renderer: gl,
+      camera,
     };
   }, [camera, gl, scene]);
   useEffect(() => {
@@ -158,16 +197,12 @@ function GlSettings() {
   return null;
 }
 
-/** keep the bench in view on portrait screens by widening the vertical field of view */
+/** portrait screens get a slightly wider lens; the views then frame their region at the right distance */
 function ResponsiveFov() {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const size = useThree((s) => s.size);
   useEffect(() => {
-    const aspect = size.width / Math.max(size.height, 1);
-    const hTarget = (56 * Math.PI) / 180; // horizontal FOV we want on narrow screens
-    let v = 46;
-    if (aspect < 1.25) v = Math.min(80, (2 * Math.atan(Math.tan(hTarget / 2) / aspect) * 180) / Math.PI);
-    camera.fov = Math.max(46, v);
+    camera.fov = size.width < size.height ? 52 : 46;
     camera.updateProjectionMatrix();
   }, [camera, size]);
   return null;
@@ -185,7 +220,8 @@ function ReadySignal() {
 
 export default function LabScene() {
   const quality = useBench((s) => s.quality);
-  const maxDpr = (q: string) => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, q === "high" ? 2 : 1.5);
+  // the light renderer can afford the phone's 2x pixels (text on the panels stays legible)
+  const maxDpr = (_q: string) => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, 2);
   const [dpr, setDpr] = useState(() => Math.max(1, maxDpr(quality)));
   useEffect(() => setDpr(Math.max(1, maxDpr(quality))), [quality]);
   // photos are always rendered at full resolution; ?dpr=… pins it (captures, testing)
@@ -208,6 +244,7 @@ export default function LabScene() {
         onIncline={() => setDpr((d) => Math.min(Math.max(1, maxDpr(quality)), d + 0.25))}
       />
       <GlSettings />
+      <ShadowThrottle />
       <ResponsiveFov />
       <color attach="background" args={["#e7e3da"]} />
       <Lights />

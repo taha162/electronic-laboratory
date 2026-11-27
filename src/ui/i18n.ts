@@ -21,6 +21,8 @@ const D = {
   views: { en: "Views", ar: "المشاهد" },
   v_seat: { en: "Seat", ar: "المقعد" },
   v_module: { en: "Module", ar: "اللوحة" },
+  v_meters: { en: "Meters", ar: "العدادات" },
+  v_pots: { en: "VR1–VR4", ar: "المقاومات" },
   v_generator: { en: "Generator", ar: "المولد" },
   v_power: { en: "Supplies", ar: "المصادر" },
   v_scope: { en: "Scope", ar: "الراسم" },

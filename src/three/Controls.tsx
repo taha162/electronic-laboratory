@@ -6,6 +6,7 @@ import { useBench } from "@/store/bench";
 import { registerAnchor, unregisterAnchor, useUi, mm } from "./registry";
 import { MAT, plastic, geo } from "./materials";
 import { knobAngle } from "./draw/textures";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { JackDef } from "@/lab/types";
 
 function setCursor(c: string) {
@@ -26,42 +27,7 @@ export function BananaJack({ gid, x, z, style, label }: { gid: string; x: number
     if (ref.current) registerAnchor(gid, ref.current, new THREE.Vector3(0, mouth, 0));
     return () => unregisterAnchor(gid);
   }, [gid, mouth]);
-  // 4 mm socket: low moulded coloured collar with a rounded top (profile bottom -> top -> into the hole,
-  // so the lathe faces point outward), metal contact sleeve inside
-  const collar = geo(
-    "jack-collar2",
-    () =>
-      new THREE.LatheGeometry(
-        [
-          new THREE.Vector2(0.0050, 0),
-          new THREE.Vector2(0.0050, 0.0029),
-          new THREE.Vector2(0.00485, 0.0037),
-          new THREE.Vector2(0.0044, 0.0043),
-          new THREE.Vector2(0.0036, 0.0046),
-          new THREE.Vector2(0.0026, 0.0045),
-          new THREE.Vector2(0.0022, 0.0042),
-          new THREE.Vector2(0.0022, 0.0036),
-        ],
-        32,
-      ),
-  );
-  const ring = geo(
-    "jack-sleeve",
-    () =>
-      new THREE.LatheGeometry(
-        [
-          new THREE.Vector2(0.00215, 0.0039),
-          new THREE.Vector2(0.00205, 0.0036),
-          new THREE.Vector2(0.00205, 0.0016),
-        ],
-        20,
-      ),
-  );
-  const holeG = geo("jack-hole", () => new THREE.CircleGeometry(0.0021, 18));
-  // small brass socket (meters, potentiometers, speaker)
-  const bBody = geo("brass-body", () => new THREE.CylinderGeometry(0.0031, 0.0034, 0.0028, 20));
-  const bRing = geo("brass-ring", () => new THREE.TorusGeometry(0.00175, 0.00055, 8, 20));
-  const bHole = geo("brass-hole", () => new THREE.CircleGeometry(0.0012, 14));
+  const g = jackGeometries();
   const glow = active ? 0.8 : hovered ? 0.35 : 0;
   return (
     <group
@@ -81,25 +47,97 @@ export function BananaJack({ gid, x, z, style, label }: { gid: string; x: number
         setCursor("auto");
       }}
     >
-      {brass ? (
-        <>
-          <mesh geometry={bBody} material={plastic("#1b1a18", glow)} position={[0, 0.0014, 0]} castShadow />
-          <mesh geometry={bRing} material={MAT.brass()} position={[0, 0.0029, 0]} rotation={[Math.PI / 2, 0, 0]} />
-          <mesh geometry={bHole} material={MAT.hole()} position={[0, 0.00285, 0]} rotation={[-Math.PI / 2, 0, 0]} />
-        </>
-      ) : (
-        <>
-          <mesh geometry={collar} material={plastic(style, glow)} castShadow />
-          <mesh geometry={ring} material={MAT.chrome()} />
-          <mesh geometry={holeG} material={MAT.hole()} position={[0, 0.0017, 0]} rotation={[-Math.PI / 2, 0, 0]} />
-        </>
-      )}
+      {/* the socket itself is drawn by <JackVisuals> (instanced); only the highlight is per jack */}
+      {glow > 0 && <mesh geometry={brass ? g.bBody : g.collar} material={plastic(brass ? "#1b1a18" : style, glow)} scale={[1.04, 1.03, 1.04]} />}
       {/* generous invisible hit target */}
       <mesh visible={false} position={[0, 0.004, 0]}>
         <cylinderGeometry args={[brass ? 0.006 : 0.0075, brass ? 0.006 : 0.0075, 0.01, 8]} />
       </mesh>
     </group>
   );
+}
+
+/** socket geometry with the part offsets baked in (shared by the instanced visuals and highlights) */
+function jackGeometries() {
+  return {
+    // 4 mm socket: low moulded coloured collar with a rounded top (profile bottom -> top -> into the hole,
+    // so the lathe faces point outward), metal contact sleeve inside
+    collar: geo(
+      "jack-collar2",
+      () =>
+        new THREE.LatheGeometry(
+          [
+            new THREE.Vector2(0.005, 0),
+            new THREE.Vector2(0.005, 0.0029),
+            new THREE.Vector2(0.00485, 0.0037),
+            new THREE.Vector2(0.0044, 0.0043),
+            new THREE.Vector2(0.0036, 0.0046),
+            new THREE.Vector2(0.0026, 0.0045),
+            new THREE.Vector2(0.0022, 0.0042),
+            new THREE.Vector2(0.0022, 0.0036),
+          ],
+          32,
+        ),
+    ),
+    sleeve: geo(
+      "jack-sleeve",
+      () =>
+        new THREE.LatheGeometry(
+          [new THREE.Vector2(0.00215, 0.0039), new THREE.Vector2(0.00205, 0.0036), new THREE.Vector2(0.00205, 0.0016)],
+          20,
+        ),
+    ),
+    hole: geo("jack-hole2", () => new THREE.CircleGeometry(0.0021, 18).rotateX(-Math.PI / 2).translate(0, 0.0017, 0)),
+    // small brass socket (meters, potentiometers, speaker)
+    bBody: geo("brass-body2", () => new THREE.CylinderGeometry(0.0031, 0.0034, 0.0028, 20).translate(0, 0.0014, 0)),
+    bRing: geo("brass-ring2", () => new THREE.TorusGeometry(0.00175, 0.00055, 8, 20).rotateX(Math.PI / 2).translate(0, 0.0029, 0)),
+    bHole: geo("brass-hole2", () => new THREE.CircleGeometry(0.0012, 14).rotateX(-Math.PI / 2).translate(0, 0.00285, 0)),
+  };
+}
+
+/**
+ * All the trainer's sockets in a few instanced draw calls (one per colour and
+ * part) instead of three meshes per socket. Positions are local (metres).
+ */
+export function JackVisuals({ jacks }: { jacks: { x: number; z: number; style: string }[] }) {
+  const g = jackGeometries();
+  const groups = useMemo(() => {
+    const big = jacks.filter((j) => j.style !== "brass");
+    const small = jacks.filter((j) => j.style === "brass");
+    const byStyle = new Map<string, typeof jacks>();
+    for (const j of big) byStyle.set(j.style, [...(byStyle.get(j.style) ?? []), j]);
+    return { big, small, byStyle: [...byStyle.entries()] };
+  }, [jacks]);
+  return (
+    <>
+      {groups.byStyle.map(([style, list]) => (
+        <Instances key={style} geometry={g.collar} material={plastic(style)} at={list} shadow />
+      ))}
+      <Instances geometry={g.sleeve} material={MAT.chrome()} at={groups.big} />
+      <Instances geometry={g.hole} material={MAT.hole()} at={groups.big} />
+      <Instances geometry={g.bBody} material={plastic("#1b1a18")} at={groups.small} shadow />
+      <Instances geometry={g.bRing} material={MAT.brass()} at={groups.small} />
+      <Instances geometry={g.bHole} material={MAT.hole()} at={groups.small} />
+    </>
+  );
+}
+
+function Instances({ geometry, material, at, shadow = false }: { geometry: THREE.BufferGeometry; material: THREE.Material; at: { x: number; z: number }[]; shadow?: boolean }) {
+  const ref = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const m = ref.current;
+    if (!m) return;
+    const o = new THREE.Object3D();
+    at.forEach((p, i) => {
+      o.position.set(p.x, 0, p.z);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+    });
+    m.instanceMatrix.needsUpdate = true;
+    m.computeBoundingSphere();
+  }, [at]);
+  if (!at.length) return null;
+  return <instancedMesh ref={ref} args={[geometry, material, at.length]} castShadow={shadow} receiveShadow />;
 }
 
 /* ---------------------------------------------------------------- */
@@ -194,7 +232,7 @@ export function PinJacks({
 /* ---------------------------------------------------------------- */
 /* Rotary knob                                                        */
 /* ---------------------------------------------------------------- */
-const knobGeoCache = new Map<number, THREE.LatheGeometry>();
+const knobGeoCache = new Map<number, THREE.BufferGeometry>();
 function knobGeometry(r: number) {
   let g = knobGeoCache.get(r);
   if (!g) {
@@ -208,8 +246,20 @@ function knobGeometry(r: number) {
       new THREE.Vector2(R * 0.9, R * 1.25),
       new THREE.Vector2(0, R * 1.27),
     ];
-    g = new THREE.LatheGeometry(pts, 40);
-    g.computeVertexNormals();
+    const body = new THREE.LatheGeometry(pts, 40);
+    body.computeVertexNormals();
+    // knurled grip ribs merged into the body: one draw call per knob
+    const parts: THREE.BufferGeometry[] = [body];
+    const n = 28;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const rib = new THREE.BoxGeometry(R * 0.1, R * 0.95, R * 0.07);
+      rib.rotateY(a);
+      rib.translate(Math.sin(a) * R * 0.955, R * 0.6, Math.cos(a) * R * 0.955);
+      parts.push(rib);
+    }
+    g = mergeGeometries(parts.map((q) => (q.index ? q.toNonIndexed() : q)), false)!;
+    g.computeBoundingSphere();
     knobGeoCache.set(r, g);
   }
   return g;
@@ -237,12 +287,17 @@ export function Knob({
   const angle = knobAngle(detents, value);
   const R = r / 1000;
   const g = knobGeometry(r);
-  const knurl = useMemo(() => {
-    const items = [];
-    const n = 28;
-    for (let i = 0; i < n; i++) items.push((i / n) * Math.PI * 2);
-    return items;
-  }, []);
+  const shaftRibs = geo("shaft-ribs", () => {
+    const parts: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 28; i += 2) {
+      const a = (i / 28) * Math.PI * 2;
+      const rib = new THREE.BoxGeometry(0.0004, 0.007, 0.0003);
+      rib.rotateY(a);
+      rib.translate(Math.sin(a) * 0.003, 0.0125, Math.cos(a) * 0.003);
+      parts.push(rib.toNonIndexed());
+    }
+    return mergeGeometries(parts, false)!;
+  });
   const set = (v: number) => {
     const max = detents > 1 ? detents - 1 : 1;
     let nv = Math.min(Math.max(v, 0), max);
@@ -304,13 +359,7 @@ export function Knob({
           <mesh position={[0, 0.0105, 0]} material={MAT.aluminium()} castShadow>
             <cylinderGeometry args={[0.003, 0.003, 0.012, 24]} />
           </mesh>
-          {knurl.map((a, i) =>
-            i % 2 ? null : (
-              <mesh key={i} position={[Math.sin(a) * 0.003, 0.0125, Math.cos(a) * 0.003]} rotation={[0, a, 0]} material={MAT.chrome()}>
-                <boxGeometry args={[0.0004, 0.007, 0.0003]} />
-              </mesh>
-            ),
-          )}
+          <mesh geometry={shaftRibs} material={MAT.chrome()} />
           {/* the D flat shows where it points */}
           <mesh position={[0, 0.0165, -0.0018]} material={MAT.darkGrey()}>
             <boxGeometry args={[0.0042, 0.0002, 0.0012]} />
@@ -319,11 +368,6 @@ export function Knob({
       ) : (
         <group rotation={[0, -angle, 0]}>
           <mesh geometry={g} material={capMat} castShadow />
-          {knurl.map((a, i) => (
-            <mesh key={i} position={[Math.sin(a) * R * 0.955, R * 0.6, Math.cos(a) * R * 0.955]} rotation={[0, a, 0]} material={capMat}>
-              <boxGeometry args={[R * 0.1, R * 0.95, R * 0.07]} />
-            </mesh>
-          ))}
           {/* top insert */}
           <mesh position={[0, R * 1.262, 0]} material={topMat}>
             <cylinderGeometry args={[R * 0.8, R * 0.83, R * 0.06, 32]} />

@@ -103,7 +103,7 @@ export default function AppShell() {
   return (
     <main className="fixed inset-0 select-none">
       <div className="absolute inset-0">{hydrated && <LabScene />}</div>
-      {!photo && (
+      {hydrated && !photo && (
         <>
           <TopBar />
           <Readings />
