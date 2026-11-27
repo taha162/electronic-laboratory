@@ -114,6 +114,13 @@ export function CameraRig() {
   useEffect(() => {
     if (ref.current) ref.current.enabled = !dragging;
   }, [dragging]);
+  useEffect(
+    () =>
+      useUi.subscribe((s) => {
+        if (ref.current && ref.current.enabled === s.dragging) ref.current.enabled = !s.dragging;
+      }),
+    [],
+  );
 
   // turning the phone: re-frame the current view for the new screen shape
   const size = useThree((s) => s.size);

@@ -135,7 +135,7 @@ export const TRAINER_KNOBS: KnobDef[] = [
   { id: "adj.v", x: 517, y: 397, r: 13.5, label: "", minLabel: "min.", maxLabel: "max.", def: 0 },
   { id: "vr1", x: 130, y: 404, r: 11.5, label: "VR1", def: 0.5 },
   { id: "vr2", x: 222, y: 404, r: 11.5, label: "VR2", def: 0.5 },
-  { id: "vr3", x: 312, y: 404, r: 11.5, label: "VR3", def: 0.5, bare: true },
+  { id: "vr3", x: 312, y: 404, r: 11.5, label: "VR3", def: 0.5 },
   { id: "vr4", x: 405, y: 404, r: 11.5, label: "VR4", def: 0.5 },
 ];
 

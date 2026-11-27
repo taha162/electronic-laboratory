@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { MODULES } from "@/lab/modules";
@@ -59,17 +60,18 @@ export function Dock() {
         )}
         <div className={`flex items-center gap-1 ${landscape ? "shrink-0" : ""}`}>
           <button className="btn !px-2" data-on={power} onClick={() => st.setPower(!power)} aria-label={t("power")}>
-            <span className="inline-block h-2 w-2 rounded-full" style={{ background: power ? "#ff3b2f" : "#555", boxShadow: power ? "0 0 6px #ff3b2f" : undefined }} />
+            <Icon name="power" size={16} style={{ color: power ? "#ff5a45" : undefined, filter: power ? "drop-shadow(0 0 4px #ff3b2f)" : undefined }} />
             {t("power")}
           </button>
           <button className="btn !px-2" data-on={palette} onClick={() => setPalette(!palette)} aria-label={t("wire")}>
             <span className="inline-block h-4 w-4 rounded-full border border-white/40" style={{ background: PLASTIC_COLORS[color] }} />
           </button>
           <button className="btn !px-2" disabled={!canUndo} onClick={() => st.undo()} style={{ opacity: canUndo ? 1 : 0.4 }} aria-label={t("undo")}>
-            ↶
+            <Icon name="undo" />
           </button>
           <button className="btn !px-2" disabled={!nWires} onClick={() => st.clearWires()} aria-label={t("clearAll")}>
-            ✕{nWires}
+            <Icon name="clear" />
+            {nWires}
           </button>
           <select value={moduleId} onChange={(e) => st.setModule(e.target.value)} className={`!text-[12px] ${landscape ? "w-40" : "min-w-0 flex-1"}`} title={t("module")}>
             {MODULES.map((m) => (
@@ -90,16 +92,16 @@ export function Dock() {
         </div>
         <span className="h-6 w-px bg-white/10" />
         <button className="btn !px-2" disabled={!canUndo} onClick={() => st.undo()} title={`${t("undo")} (Ctrl+Z)`} style={{ opacity: canUndo ? 1 : 0.4 }}>
-          ↶
+          <Icon name="undo" />
         </button>
         <button className="btn !px-2" disabled={!canRedo} onClick={() => st.redo()} title={`${t("redo")} (Ctrl+Y)`} style={{ opacity: canRedo ? 1 : 0.4 }}>
-          ↷
+          <Icon name="redo" />
         </button>
         <button className="btn" disabled={!nWires} onClick={() => st.clearWires()} title={t("clearAll")}>
-          ✕ {nWires}
+          <Icon name="clear" /> {nWires}
         </button>
         <button className="btn" data-on={power} onClick={() => st.setPower(!power)}>
-          <span className="inline-block h-2 w-2 rounded-full" style={{ background: power ? "#ff3b2f" : "#555", boxShadow: power ? "0 0 6px #ff3b2f" : undefined }} />
+          <Icon name="power" size={16} style={{ color: power ? "#ff5a45" : undefined, filter: power ? "drop-shadow(0 0 4px #ff3b2f)" : undefined }} />
           {t("power")}
         </button>
         <select value={moduleId} onChange={(e) => st.setModule(e.target.value)} className="max-w-[12rem]" title={t("module")}>
@@ -119,7 +121,7 @@ export function Dock() {
         </div>
         <select className="lg:hidden" defaultValue="" onChange={(e) => e.target.value && go(e.target.value)} title={t("views")}>
           <option value="" disabled>
-            👁 {t("views")}
+            {t("views")}
           </option>
           {VIEWS.map((v) => (
             <option key={v} value={v}>

@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { useEffect, useRef, useState } from "react";
 import { useBench, SEQ_TDIV, SEQ_VDIV, type ScopeSettings } from "@/store/bench";
 import { SCREEN_H, SCREEN_W } from "@/scope/renderScope";
@@ -59,7 +60,7 @@ export function ScopePanel() {
       >
         <h2 className="text-sm font-semibold">{t("scopeTitle")}</h2>
         <button className="btn !px-2" onClick={() => useBench.getState().setPanel("none")}>
-          ✕
+          <Icon name="close" />
         </button>
       </header>
       <div className="p-3">
@@ -94,11 +95,11 @@ export function ScopePanel() {
               <div className="flex items-center justify-between gap-1">
                 <span className="text-[var(--color-mute)]">{t("vdiv")}</span>
                 <button className="btn !px-2 !py-1" onClick={() => ch(i, { vdiv: stepSeq(SEQ_VDIV, s.ch[i].vdiv, -1) })}>
-                  −
+                  <Icon name="minus" size={16} />
                 </button>
                 <span className="w-16 text-center font-mono">{fmtV(s.ch[i].vdiv)}</span>
                 <button className="btn !px-2 !py-1" onClick={() => ch(i, { vdiv: stepSeq(SEQ_VDIV, s.ch[i].vdiv, 1) })}>
-                  +
+                  <Icon name="plus" size={16} />
                 </button>
               </div>
               <label className="mt-2 flex items-center gap-2">
@@ -111,11 +112,11 @@ export function ScopePanel() {
             <div className="flex items-center justify-between gap-1">
               <span className="text-[var(--color-mute)]">{t("tdiv")}</span>
               <button className="btn !px-2 !py-1" onClick={() => set((x) => ({ ...x, tdiv: stepSeq(SEQ_TDIV, x.tdiv, -1) }))}>
-                −
+                <Icon name="minus" size={16} />
               </button>
               <span className="w-16 text-center font-mono">{fmtT(s.tdiv)}</span>
               <button className="btn !px-2 !py-1" onClick={() => set((x) => ({ ...x, tdiv: stepSeq(SEQ_TDIV, x.tdiv, 1) }))}>
-                +
+                <Icon name="plus" size={16} />
               </button>
             </div>
             <label className="mt-2 flex items-center gap-2">
@@ -129,8 +130,8 @@ export function ScopePanel() {
                 <option value={1}>CH2</option>
               </select>
               <select value={s.trig.edge} onChange={(e) => set((x) => ({ ...x, trig: { ...x.trig, edge: e.target.value as "rise" } }))}>
-                <option value="rise">↑</option>
-                <option value="fall">↓</option>
+                <option value="rise">Rise</option>
+                <option value="fall">Fall</option>
               </select>
               <select value={s.trig.mode} onChange={(e) => set((x) => ({ ...x, run: true, trig: { ...x.trig, mode: e.target.value as "auto" } }))}>
                 <option value="auto">Auto</option>
@@ -154,7 +155,7 @@ export function ScopePanel() {
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-1.5 text-xs">
           <button className="btn" data-on={!s.run} onClick={() => set((x) => ({ ...x, run: !x.run }))}>
-            {s.run ? "■ STOP" : "▶ RUN"}
+            <Icon name={s.run ? "stop" : "play"} size={14} /> {s.run ? "STOP" : "RUN"}
           </button>
           <button className="btn" onClick={autoSet}>
             {t("autoset")}

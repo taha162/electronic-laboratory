@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { useState } from "react";
 import { useBench } from "@/store/bench";
 import type { PartKind } from "@/lab/types";
@@ -44,7 +45,7 @@ export function PartsPanel() {
         <h2 className="text-sm font-semibold">{t("parts")}</h2>
         {placing && (
           <button className="btn !py-1" onClick={() => useBench.setState({ placing: null })}>
-            ✕
+            <Icon name="close" />
           </button>
         )}
       </div>

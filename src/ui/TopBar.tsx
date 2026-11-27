@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { EXPERIMENT_BY_ID } from "@/lab/experiments";
@@ -21,13 +22,13 @@ export function TopBar() {
   const extras = (
     <>
       <button className="btn" data-on={sound} title={t("sound")} onClick={() => st.setSound(!sound)}>
-        {sound ? "🔊" : "🔇"} {phone && <span>{t("sound")}</span>}
+        <Icon name={sound ? "soundOn" : "soundOff"} /> {phone && <span>{t("sound")}</span>}
       </button>
       <button className="btn" data-on={panel === "help"} onClick={() => st.setPanel("help")}>
-        ? {phone && <span>{t("help")}</span>}
+        <Icon name="help" /> {phone && <span>{t("help")}</span>}
       </button>
       <button className="btn" title={t("quality")} onClick={() => st.setQuality(quality === "high" ? "low" : "high")}>
-        ◐ {quality === "high" ? t("high") : t("low")}
+        <Icon name="gauge" /> {quality === "high" ? t("high") : t("low")}
       </button>
       <button className="btn font-semibold" onClick={() => st.setLang(lang === "ar" ? "en" : "ar")}>
         {lang === "ar" ? "EN" : "عربي"}
@@ -49,19 +50,19 @@ export function TopBar() {
       </div>
       <div className={`glass pointer-events-auto relative flex items-center rounded-xl ${phone ? "gap-1 px-1.5 py-1.5" : "gap-1.5 px-2 py-1.5"}`}>
         <button className="btn" data-on={panel === "experiment"} onClick={() => st.setPanel("experiment")}>
-          ⚗ {!phone && <span>{t("experiments")}</span>}
+          <Icon name="flask" /> {!phone && <span>{t("experiments")}</span>}
         </button>
         <button className="btn" data-on={panel === "saves"} onClick={() => st.setPanel("saves")}>
-          ⤓ {!phone && <span>{t("saves")}</span>}
+          <Icon name="saves" /> {!phone && <span>{t("saves")}</span>}
         </button>
         <button className="btn" data-on={insight} title={t("insightTip")} onClick={() => useUi.getState().setInsight(!insight)}>
-          ⚛ <span className="hidden lg:inline">{t("insight")}</span>
+          <Icon name="xray" /> <span className="hidden lg:inline">{t("insight")}</span>
         </button>
         {!phone && <div className="flex items-center gap-1.5">{extras}</div>}
         {/* phones: the rarely used buttons live in a small menu */}
         {phone && (
           <button className="btn" data-on={more} aria-label="more" onClick={() => setMore(!more)}>
-            ⋯
+            <Icon name="more" />
           </button>
         )}
         {phone && more && (

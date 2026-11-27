@@ -41,6 +41,8 @@ export const pointerHit = { point: new THREE.Vector3(0, 0.85, 0), valid: false }
 interface UiState {
   hover: { id: string; label: string } | null;
   dragging: boolean;
+  /** knob whose touch-friendly control sheet is open */
+  ctrl: string | null;
   camCmd: { name: string; t: number; slow?: boolean } | null;
   /** first frames rendered */
   ready: boolean;
@@ -50,6 +52,7 @@ interface UiState {
   guide: boolean;
   setHover(h: UiState["hover"]): void;
   setDragging(d: boolean): void;
+  setCtrl(id: string | null): void;
   cam(name: string, slow?: boolean): void;
   setReady(r: boolean): void;
   setInsight(v: boolean): void;
@@ -58,12 +61,14 @@ interface UiState {
 export const useUi = create<UiState>((set) => ({
   hover: null,
   dragging: false,
+  ctrl: null,
   camCmd: null,
   ready: false,
   insight: false,
   guide: true,
   setHover: (hover) => set({ hover }),
   setDragging: (dragging) => set({ dragging }),
+  setCtrl: (ctrl) => set({ ctrl }),
   cam: (name, slow) => set({ camCmd: { name, t: Date.now(), slow } }),
   setReady: (ready) => set({ ready }),
   setInsight: (insight) => set({ insight }),

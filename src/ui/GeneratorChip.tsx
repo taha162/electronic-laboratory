@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { fgSettings } from "@/lab/netlist";
@@ -6,7 +7,7 @@ import { adjVoltage, fgDialFor } from "@/lab/trainer";
 import { fmtEng } from "@/sim/measure";
 import { useT } from "./i18n";
 
-const WAVES = ["∿ sine", "⋀ triangle", "⊓ square"];
+const WAVES = ["sine", "triangle", "square"] as const;
 
 /** Shows the function-generator / supply settings derived from the knob positions,
  *  and lets the student dial an exact value (the knobs move accordingly). */
@@ -29,7 +30,7 @@ export function GeneratorChip() {
     <div className="pointer-events-auto absolute start-3 bottom-[4.8rem] z-10 hidden md:block" dir="ltr">
       <button className="glass flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-mono text-[11px]" onClick={() => setOpen(!open)}>
         <span className="font-sans text-[10px] text-[var(--color-mute)]">FG</span>
-        <span>{WAVES[Math.round(knobs["fg.func"] ?? 0)].split(" ")[0]}</span>
+        <Icon name={WAVES[Math.round(knobs["fg.func"] ?? 0)]} size={16} />
         <span>{fmtEng(fg.freq, "Hz")}</span>
         <span>{fg.vpp.toFixed(fg.vpp < 1 ? 3 : 2)} Vpp</span>
         <span className="text-[var(--color-mute)]">· ±{adjVoltage(knobs["adj.v"] ?? 0).toFixed(1)} V</span>
@@ -41,7 +42,7 @@ export function GeneratorChip() {
           <div className="mb-2 flex gap-1">
             {WAVES.map((w, i) => (
               <button key={w} className="btn !px-2 !py-1" data-on={Math.round(knobs["fg.func"] ?? 0) === i} onClick={() => st.setKnob("fg.func", i)}>
-                {w.split(" ")[0]}
+                <Icon name={w} size={16} />
               </button>
             ))}
           </div>

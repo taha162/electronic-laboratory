@@ -1,4 +1,5 @@
 "use client";
+import { Icon } from "./icons";
 import { saveFile } from "./download";
 import { useRef, useState } from "react";
 import { useBench, type SavedExperiment } from "@/store/bench";
@@ -27,7 +28,7 @@ export function SavesPanel() {
           onClick={() => {
             st.saveExperiment(name.trim() || defName());
             setName("");
-            st.notify("✓ " + t("save"));
+            st.notify(t("save"));
           }}
         >
           {t("save")}
@@ -41,10 +42,10 @@ export function SavesPanel() {
             saveFile(blob, `electronics-lab-saves-${Date.now()}.json`);
           }}
         >
-          ⤓ {t("exportJ")}
+          <Icon name="download" size={16} /> {t("exportJ")}
         </button>
         <button className="btn" onClick={() => file.current?.click()}>
-          ⤒ {t("importJ")}
+          <Icon name="upload" size={16} /> {t("importJ")}
         </button>
         <input
           ref={file}
@@ -58,7 +59,7 @@ export function SavesPanel() {
               const j = JSON.parse(await f.text()) as { saves?: SavedExperiment[] };
               if (Array.isArray(j.saves)) useBench.setState((s) => ({ saves: [...j.saves!, ...s.saves] }));
             } catch {
-              st.notify("✕ JSON");
+              st.notify("JSON ?");
             }
             e.target.value = "";
           }}
@@ -75,7 +76,7 @@ export function SavesPanel() {
               </div>
             </div>
             <div className="flex shrink-0 gap-1">
-              <button className="btn !py-1" onClick={() => (st.loadSave(s.id), st.notify("✓ " + t("load")))}>
+              <button className="btn !py-1" onClick={() => (st.loadSave(s.id), st.notify(t("load")))}>
                 {t("load")}
               </button>
               <button className="btn !py-1" onClick={() => st.deleteSave(s.id)}>

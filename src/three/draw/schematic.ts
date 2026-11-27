@@ -5,7 +5,9 @@
 import type { ModuleDef, PartDef } from "@/lab/types";
 
 type P = [number, number];
-const INK = "#141414";
+const INK = "#101010";
+/** line weight of the screen print (mm per nominal unit): heavy enough to read from the seat */
+const LW = 1.75;
 
 function seg(ctx: CanvasRenderingContext2D, a: P, b: P) {
   ctx.beginPath();
@@ -81,7 +83,7 @@ function diodeBody(ctx: CanvasRenderingContext2D, h: number, kind: "D" | "Z" | "
 export function drawPart(ctx: CanvasRenderingContext2D, p: PartDef, jackPos: (id: string) => P | null) {
   ctx.strokeStyle = INK;
   ctx.fillStyle = INK;
-  ctx.lineWidth = 0.5;
+  ctx.lineWidth = 0.5 * LW;
   const pins = p.pins.map((id) => (id.startsWith("@") ? null : jackPos(id)));
   const pos = p.pos ?? 0.5;
   let labelAt: P | null = null;
@@ -191,9 +193,9 @@ export function drawPart(ctx: CanvasRenderingContext2D, p: PartDef, jackPos: (id
       ctx.beginPath();
       ctx.arc(x, y, 6.2, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.lineWidth = 0.6;
+      ctx.lineWidth = 0.6 * LW;
       seg(ctx, [x - 2.2, y - 3.4], [x - 2.2, y + 3.4]);
-      ctx.lineWidth = 0.5;
+      ctx.lineWidth = 0.5 * LW;
       seg(ctx, [x - 2.2, y - 1.2], [x + 2.6, y - 4.4]); // collector
       seg(ctx, [x - 2.2, y + 1.2], [x + 2.6, y + 4.4]); // emitter
       // emitter arrow
@@ -260,7 +262,7 @@ export function drawPart(ctx: CanvasRenderingContext2D, p: PartDef, jackPos: (id
     ctx.translate(lx, ly);
     ctx.rotate(labelRot);
     ctx.fillStyle = INK;
-    ctx.font = "bold 2.9px Arial";
+    ctx.font = "bold 3.5px Arial";
     ctx.textAlign = p.kind === "NPN" || p.kind === "PNP" || p.kind === "OA" ? "left" : "left";
     ctx.textBaseline = "middle";
     const vertical = (() => {
@@ -270,7 +272,7 @@ export function drawPart(ctx: CanvasRenderingContext2D, p: PartDef, jackPos: (id
     })();
     if (vertical || p.kind === "POT") {
       if (p.label) ctx.fillText(p.label, 0, -1.6);
-      ctx.font = "bold 2.6px Arial";
+      ctx.font = "bold 3.1px Arial";
       if (p.text) ctx.fillText(p.text, 0, 1.6);
     } else {
       ctx.textAlign = "center";
@@ -294,14 +296,14 @@ export function drawModuleFace(ctx: CanvasRenderingContext2D, m: ModuleDef) {
   // title bar
   ctx.fillStyle = INK;
   ctx.strokeStyle = INK;
-  ctx.lineWidth = 0.35;
+  ctx.lineWidth = 0.35 * LW;
   ctx.strokeRect(6, 5, 16, 9);
   ctx.font = "bold 5px Arial";
   ctx.textBaseline = "middle";
   ctx.textAlign = "center";
   ctx.fillText("KL", 14, 9.8);
   ctx.textAlign = "left";
-  ctx.font = "bold 5.2px Arial";
+  ctx.font = "bold 5.8px Arial";
   ctx.fillText(`${m.code}  ${m.title}`, 26, 10);
 
   const jmap = new Map(m.jacks.map((j) => [j.id, j]));
@@ -312,12 +314,12 @@ export function drawModuleFace(ctx: CanvasRenderingContext2D, m: ModuleDef) {
 
   // blocks (dashed frames)
   ctx.setLineDash([2.2, 1.4]);
-  ctx.lineWidth = 0.45;
+  ctx.lineWidth = 0.45 * LW;
   for (const b of m.blocks) {
     if (m.breadboard) continue;
     const [x, y, w, h] = b.rect;
     ctx.strokeRect(x, y, w, h);
-    ctx.font = "italic bold 4px Arial";
+    ctx.font = "italic bold 4.6px Arial";
     ctx.textAlign = "right";
     ctx.fillText(b.label, x + w - 2, y + h - 2.6);
   }
@@ -329,7 +331,7 @@ export function drawModuleFace(ctx: CanvasRenderingContext2D, m: ModuleDef) {
     ctx.fillStyle = "#d9d9d2";
     ctx.fillRect(10, 136, 348, 8);
     ctx.strokeStyle = "#c8312a";
-    ctx.lineWidth = 0.5;
+    ctx.lineWidth = 0.5 * LW;
     seg(ctx, [24, 24], [340, 24]);
     seg(ctx, [24, 212], [340, 212]);
     ctx.strokeStyle = "#2c4fb8";
@@ -340,7 +342,7 @@ export function drawModuleFace(ctx: CanvasRenderingContext2D, m: ModuleDef) {
 
   // printed traces
   ctx.strokeStyle = INK;
-  ctx.lineWidth = 0.5;
+  ctx.lineWidth = 0.5 * LW;
   for (const tr of m.traces) {
     if (m.breadboard) break;
     const pts = tr.map((p) => (typeof p === "string" ? jp(p) : p)).filter(Boolean) as P[];
@@ -370,7 +372,7 @@ export function drawModuleFace(ctx: CanvasRenderingContext2D, m: ModuleDef) {
     ctx.fill();
     if (j.label) {
       ctx.fillStyle = INK;
-      ctx.font = "bold 3.1px Arial";
+      ctx.font = "bold 3.7px Arial";
       ctx.textBaseline = "middle";
       const off = 5.2;
       const lp = j.lp ?? "n";

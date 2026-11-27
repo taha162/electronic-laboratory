@@ -14,6 +14,7 @@ import { ScopePanel } from "./ScopePanel";
 import { SavesPanel } from "./SavesPanel";
 import { PartsPanel } from "./PartsPanel";
 import { HelpPanel, Welcome } from "./HelpPanel";
+import { KnobSheet } from "./KnobSheet";
 import { GeneratorChip } from "./GeneratorChip";
 import { Alerts } from "./Alerts";
 import { useT } from "./i18n";
@@ -87,6 +88,7 @@ export default function AppShell() {
           <Alerts />
           <Dock />
           <HoverTip />
+          <KnobSheet />
           <StatusHint />
           <Toast />
           {panel === "experiment" && <ExperimentPanel />}
