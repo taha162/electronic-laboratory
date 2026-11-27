@@ -11,6 +11,7 @@ import { useUi } from "@/ui/uiState";
 import { sfx } from "@/audio/audio";
 import { meterUrl, panelUrl } from "./prints";
 import { type Layout } from "./geometry";
+import { gesture } from "./Viewport";
 
 const deg = (r: number) => (r * 180) / Math.PI;
 
@@ -83,13 +84,19 @@ export function Knob2D({ k, x, y, trimmer }: { k: Pick<KnobDef, "id" | "r" | "de
       className="cursor-grab"
       style={{ touchAction: "none" }}
       onPointerDown={(e) => {
-        e.stopPropagation();
+        // no stopPropagation: the bench counts this finger too, so a second one makes a pinch
         (e.currentTarget as Element).setPointerCapture(e.pointerId);
         drag.current = { y0: e.clientY, v0: useBench.getState().knobs[k.id] ?? 0, moved: false, id: e.pointerId };
       }}
       onPointerMove={(e) => {
         const d = drag.current;
         if (!d || d.id !== e.pointerId) return;
+        if (gesture.pinching) {
+          // it was a pinch that started on the knob: put the knob back and let go
+          if (d.moved) useBench.getState().setKnob(k.id, d.v0);
+          drag.current = null;
+          return;
+        }
         const dy = d.y0 - e.clientY;
         if (!d.moved && Math.abs(dy) < 5) return;
         d.moved = true;
@@ -98,9 +105,15 @@ export function Knob2D({ k, x, y, trimmer }: { k: Pick<KnobDef, "id" | "r" | "de
       onPointerUp={(e) => {
         const d = drag.current;
         drag.current = null;
-        if (d && !d.moved && d.id === e.pointerId) useUi.getState().setCtrl(k.id);
+        if (d && !d.moved && d.id === e.pointerId && !gesture.pinching) useUi.getState().setCtrl(k.id);
       }}
       onPointerCancel={() => (drag.current = null)}
+      onLostPointerCapture={() => {
+        // the bench took the finger for a pinch: undo any turn it made on the way
+        const d = drag.current;
+        if (d && gesture.pinching && d.moved) useBench.getState().setKnob(k.id, d.v0);
+        if (gesture.pinching) drag.current = null;
+      }}
       onWheel={(e) => {
         e.stopPropagation();
         const cur = useBench.getState().knobs[k.id] ?? 0;
