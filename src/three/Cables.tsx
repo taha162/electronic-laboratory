@@ -20,18 +20,52 @@ const UP = new THREE.Vector3(0, 1, 0);
 /* ---------------------------------------------------------------- */
 /** KL-21001 footprint on the bench (world) — cables are draped over it */
 const TR = { x0: -0.285, x1: 0.345, z0: -0.318, z1: 0.178, front: 0.169, cx: 0.03, cz: -0.07 };
-function trainerTop(x: number, z: number): number | null {
-  if (x < TR.x0 || x > TR.x1 || z < TR.z0 || z > TR.z1) return null;
-  // panel plane: 66 mm at the front edge rising 70 mm over the 478 mm depth
+/** height of the trainer's top at a point inside its footprint (panel slope + parts standing proud) */
+function trainerTopAt(x: number, z: number) {
   const y = DESK_Y + 0.066 + (Math.max(TR.front - z, 0) / 0.478) * 0.07;
-  // module plate + jacks/knobs stand proud of the panel
   const onModule = x > -0.148 && x < 0.21 && z > -0.167 && z < 0.087;
   return y + (onModule ? 0.03 : 0.022);
 }
-function drape(p: THREE.Vector3) {
-  const top = trainerTop(p.x, p.z);
-  if (top !== null && p.y < top) p.y = top;
-  if (p.y < DESK_Y + 0.003) p.y = DESK_Y + 0.003;
+/**
+ * Lowest height a cable may have at (x, z): the bench, the trainer (with a rounded
+ * bank around its edges so a cord bends over the edge instead of cutting through
+ * the case) and the oscilloscope and multimeter bodies where they stand.
+ */
+function floorAt(x: number, z: number): number {
+  let h = DESK_Y + 0.003;
+  // trainer: inside → its top; within 3 cm outside → falling off the edge like a cord would
+  const cx = Math.min(Math.max(x, TR.x0), TR.x1),
+    cz = Math.min(Math.max(z, TR.z0), TR.z1);
+  const d = Math.hypot(x - cx, z - cz);
+  if (d < 0.03) {
+    const top = trainerTopAt(cx, cz);
+    const k = d / 0.03;
+    h = Math.max(h, DESK_Y + (top - DESK_Y) * (1 - k * k));
+  }
+  const devs = useBench.getState().devices;
+  // FNIRSI tablet leaning back on its stand: a sloped wedge in its own frame
+  {
+    const p = devs.osc;
+    const c = Math.cos(p.rot),
+      s = Math.sin(p.rot);
+    const lx = c * (x - p.x) - s * (z - p.z),
+      lz = s * (x - p.x) + c * (z - p.z);
+    if (Math.abs(lx) < 0.1 && lz > -0.07 && lz < 0.05) h = Math.max(h, DESK_Y + 0.012 + ((0.05 - lz) / 0.12) * 0.09);
+  }
+  // MT-1232 lying on the bench
+  {
+    const p = devs.dmm;
+    const c = Math.cos(p.rot),
+      s = Math.sin(p.rot);
+    const lx = c * (x - p.x) - s * (z - p.z),
+      lz = s * (x - p.x) + c * (z - p.z);
+    if (Math.abs(lx) < 0.042 && Math.abs(lz) < 0.078) h = Math.max(h, DESK_Y + 0.05);
+  }
+  return h;
+}
+function drape(p: THREE.Vector3, r = 0.003) {
+  const f = floorAt(p.x, p.z) + r;
+  if (p.y < f) p.y = f;
   return p;
 }
 
@@ -40,7 +74,8 @@ export function cableCurve(a: THREE.Vector3, na: THREE.Vector3, b: THREE.Vector3
   const p3 = b.clone().addScaledVector(nb, rise);
   const d = p1.distanceTo(p3);
   // catenary-like sag between the two raised points, then drape over obstacles
-  const N = Math.max(6, Math.min(16, Math.round(d / 0.035)));
+  // dense enough that no straight piece between two samples cuts through an edge
+  const N = Math.max(8, Math.min(40, Math.round(d / 0.018)));
   const pts: THREE.Vector3[] = [a, a.clone().addScaledVector(na, rise * 0.5)];
   for (let i = 0; i <= N; i++) {
     const u = i / N;
@@ -453,7 +488,12 @@ export function Leads() {
       if (jack && anchorWorld(jack, tmp.a)) {
         pos = tmp.a.clone();
         dir = anchorNormal(jack).clone();
-        if (l.kind === "probe" || l.kind === "pen") dir.add(new THREE.Vector3(0, 0, 0.35)).normalize();
+        if (l.kind === "probe" || l.kind === "pen") {
+          // a pen / probe resting on a socket leans back towards its instrument
+          const dev = l.id.startsWith("osc") ? st.devices.osc : st.devices.dmm;
+          const toward = new THREE.Vector3(dev.x - pos.x, 0, dev.z - pos.z).normalize();
+          dir = UP.clone().multiplyScalar(l.kind === "pen" ? 0.55 : 0.75).addScaledVector(toward, 0.85).normalize();
+        }
       } else if (isHeld && pointerHit.valid) {
         pos = pointerHit.point.clone().add(new THREE.Vector3(0, 0.03, 0));
         dir = UP.clone();
