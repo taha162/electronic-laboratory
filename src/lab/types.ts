@@ -27,7 +27,8 @@ export type PartKind =
   | "POT" // pins: [A, wiper, C]
   | "RV" // rheostat on the module: value = min + knob * value
   | "OA" // pins: [in-, in+, out, V+, V-]
-  | "EXT"; // printed placeholder: the student connects a KL-21001 part here (not simulated)
+  | "EXT" // printed placeholder: the student connects a KL-21001 part here (not simulated)
+  | "SW"; // push button (normally open, printed only)
 
 export interface PartDef {
   id: string;
@@ -56,6 +57,37 @@ export interface PartDef {
   ext?: "pot" | "rheostat";
   /** don't draw lead lines (used for custom/breadboard parts) */
   noLeads?: boolean;
+  /** printed designator position (mm, left/centre of the text) when it is not beside the body */
+  lp?: [number, number];
+  /** transistors: symbol orientation — the base lead points this way (default "w") */
+  face?: "w" | "e" | "n" | "s";
+  /** transistors: mirror the symbol (collector and emitter swap sides) */
+  flip?: boolean;
+  /** symbol body length along the leads (mm) */
+  len?: number;
+  /** 3D: LEDs mounted away from their printed symbol (mm) */
+  mount?: [number, number];
+  /** printed only, left out of the simulation (e.g. a phototransistor nothing lights) */
+  deco?: boolean;
+}
+
+/** printed graphics that are not parts or traces */
+export type MarkDef =
+  | { kind: "gnd"; x: number; y: number } // earth symbol hanging below (x, y)
+  | { kind: "ac"; x: number; y: number } // signal-input symbol: sine in a circle with an arrow to the left
+  | { kind: "arrow"; x: number; y: number; dir: "e" | "w" | "n" | "s" } // supply arrow (tail at x, y)
+  | { kind: "dot"; x: number; y: number } // junction
+  | { kind: "line"; pts: [number, number][]; dash?: boolean } // printed line with no electrical meaning
+  | { kind: "light"; x: number; y: number; out?: boolean }; // two light arrows (into or out of a part)
+
+/** physical parts standing on the board */
+export interface PropDef {
+  kind: "dip" | "relay" | "button" | "photo" | "led";
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  color?: string;
 }
 
 /** polyline of jack ids and/or raw points; every jack on a trace is the same electrical node */
@@ -65,6 +97,8 @@ export interface BlockDef {
   id: string;
   label: string;
   rect: [number, number, number, number];
+  /** label position (right end of the text) when the frame is not a rectangle */
+  at?: [number, number];
 }
 
 export interface TextDef {
@@ -90,6 +124,12 @@ export interface ModuleDef {
   texts?: TextDef[];
   /** local jack ids that are hard-wired to the trainer earth through the module connector */
   earth?: string[];
+  /** connections made inside the module (not printed), e.g. the supply row to the blocks */
+  links?: [string, string][];
+  /** dashed block borders as polylines; when given, the block rectangles are not drawn */
+  dashes?: [number, number][][];
+  marks?: MarkDef[];
+  props?: PropDef[];
   /** breadboard style module (accepts custom parts) */
   breadboard?: boolean;
 }

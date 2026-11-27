@@ -162,8 +162,8 @@ export function PinJacks({
   const holeRef = useRef<THREE.InstancedMesh>(null);
   const pending = useBench((s) => s.pending);
   const hover = useUi((s) => s.hover);
-  const ringG = geo("pin-ring", () => new THREE.CylinderGeometry(0.0026, 0.0028, 0.0024, 18));
-  const holeG = geo("pin-hole", () => new THREE.CylinderGeometry(0.0012, 0.0012, 0.0002, 12));
+  const ringG = geo("pin-ring", () => new THREE.CylinderGeometry(0.003, 0.0032, 0.0024, 18));
+  const holeG = geo("pin-hole", () => new THREE.CylinderGeometry(0.0014, 0.0014, 0.0002, 12));
   const hiMat = useMemo(() => new THREE.MeshStandardMaterial({ color: "#ffd24a", emissive: "#ffb000", emissiveIntensity: 0.9, roughness: 0.3, metalness: 0.6 }), []);
 
   useLayoutEffect(() => {
@@ -221,7 +221,7 @@ export function PinJacks({
         if (!j) return null;
         return (
           <mesh key={id} position={[mm(j.x - width / 2), 0.0016, mm(j.y - height / 2)]} rotation={[Math.PI / 2, 0, 0]} material={hiMat}>
-            <torusGeometry args={[0.0034, 0.0007, 8, 24]} />
+            <torusGeometry args={[0.0039, 0.0007, 8, 24]} />
           </mesh>
         );
       })}
@@ -304,7 +304,7 @@ export function Knob({
     if (detents > 1) nv = Math.round(nv);
     useBench.getState().setKnob(id, nv);
   };
-  const capMat = style === "trimmer" ? plastic("#2f62c9") : MAT.blackPlastic();
+  const capMat = style === "trimmer" ? plastic("#ecebe6") : MAT.blackPlastic();
   // the KL-21001 knobs have a cream-white top insert with a black pointer line
   const topMat = style === "trimmer" ? capMat : knobCapMaterial();
   return (
@@ -377,7 +377,7 @@ export function Knob({
             <cylinderGeometry args={[R * 0.8, R * 0.83, R * 0.06, 32]} />
           </mesh>
           {/* pointer line */}
-          <mesh position={[0, R * 1.296, -R * 0.42]} material={style === "trimmer" ? MAT.white() : MAT.blackPlastic()}>
+          <mesh position={[0, R * 1.296, -R * 0.42]} material={MAT.blackPlastic()}>
             <boxGeometry args={[R * 0.11, 0.0003, R * 0.72]} />
           </mesh>
         </group>

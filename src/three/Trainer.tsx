@@ -7,7 +7,7 @@ import { useBench } from "@/store/bench";
 import { useSim } from "@/lab/simController";
 import { DVM_RECT, MODULE_SLOT, SCREWS, TRAINER_H, TRAINER_JACKS, TRAINER_KNOBS, TRAINER_METERS, TRAINER_W } from "@/lab/trainer";
 import { getModule } from "@/lab/modules";
-import type { ModuleDef } from "@/lab/types";
+import type { ModuleDef, PropDef } from "@/lab/types";
 import { BananaJack, JackVisuals, Knob, PinJacks } from "./Controls";
 import { MergeStatic } from "./MergeStatic";
 import { MAT, PLASTIC_COLORS, plastic } from "./materials";
@@ -428,6 +428,90 @@ function PartFx({ mod }: { mod: ModuleDef }) {
   );
 }
 
+/** parts standing on a board: the DIP-switch cap, relay K1, push button S1, phototransistor, dark LEDs */
+const propMats = {
+  black: new THREE.MeshStandardMaterial({ color: "#141414", roughness: 0.42 }),
+  blue: new THREE.MeshStandardMaterial({ color: "#2f6be0", roughness: 0.35 }),
+  base: new THREE.MeshStandardMaterial({ color: "#2a2a2a", roughness: 0.6 }),
+  can: new THREE.MeshStandardMaterial({ color: "#b9b4a6", roughness: 0.28, metalness: 0.85 }),
+  lens: new THREE.MeshStandardMaterial({ color: "#e9e4d6", roughness: 0.08, emissive: "#3a2a1a", emissiveIntensity: 0.15 }),
+};
+let relayTex: THREE.Texture | null = null;
+function relayPrint() {
+  if (relayTex) return relayTex;
+  const c = canvas(256, 200);
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = "#121212";
+  ctx.fillRect(0, 0, 256, 200);
+  ctx.fillStyle = "#e8e8e8";
+  ctx.font = "bold 22px Arial";
+  ctx.textAlign = "center";
+  ctx.fillText("SRD-12VDC-SL-C", 128, 52);
+  ctx.font = "16px Arial";
+  ctx.fillText("10A 250VAC  10A 30VDC", 128, 90);
+  ctx.fillText("10A 125VAC  10A 28VDC", 128, 116);
+  ctx.font = "bold 26px Arial";
+  ctx.fillText("CE   UL   ⊿", 128, 168);
+  relayTex = toTexture(c);
+  return relayTex;
+}
+function BoardProp({ p, x, z }: { p: PropDef; x: number; z: number }) {
+  const w = mm(p.w ?? 20),
+    d = mm(p.h ?? 20);
+  switch (p.kind) {
+    case "dip":
+      return (
+        <RoundedBox args={[w, 0.011, d]} radius={0.0045} smoothness={3} position={[x, 0.0055, z]} material={propMats.black} castShadow />
+      );
+    case "relay":
+      return (
+        <group position={[x, 0, z]}>
+          <mesh position={[0, 0.0078, 0]} material={propMats.black} castShadow>
+            <boxGeometry args={[w, 0.0156, d]} />
+          </mesh>
+          <mesh position={[0, 0.0157, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[w * 0.96, d * 0.94]} />
+            <meshStandardMaterial map={relayPrint()} roughness={0.5} />
+          </mesh>
+        </group>
+      );
+    case "button":
+      return (
+        <group position={[x, 0, z]}>
+          <mesh position={[0, 0.002, 0]} material={propMats.base}>
+            <boxGeometry args={[w * 1.12, 0.004, d * 1.12]} />
+          </mesh>
+          <RoundedBox args={[w, 0.009, d]} radius={0.0016} smoothness={3} position={[0, 0.0075, 0]} material={propMats.blue} castShadow />
+        </group>
+      );
+    case "photo":
+      return (
+        <group position={[x, 0, z]}>
+          <mesh position={[0, 0.0022, 0]} material={propMats.can}>
+            <cylinderGeometry args={[0.0031, 0.0033, 0.0044, 20]} />
+          </mesh>
+          <mesh position={[0, 0.0046, 0]} material={propMats.lens}>
+            <sphereGeometry args={[0.0019, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
+          </mesh>
+        </group>
+      );
+    case "led":
+      return (
+        <group position={[x, 0, z]}>
+          <mesh position={[0, 0.0035, 0]}>
+            <cylinderGeometry args={[0.0027, 0.0029, 0.005, 20]} />
+            <meshStandardMaterial color={p.color ?? "#222"} roughness={0.2} />
+          </mesh>
+          <mesh position={[0, 0.006, 0]}>
+            <sphereGeometry args={[0.0027, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshStandardMaterial color={p.color ?? "#222"} roughness={0.2} />
+          </mesh>
+        </group>
+      );
+  }
+  return null;
+}
+
 export function ModulePlate({ mod }: { mod: ModuleDef }) {
   const ref = useRef<THREE.Group>(null);
   const tex = moduleTexture(mod);
@@ -470,7 +554,8 @@ export function ModulePlate({ mod }: { mod: ModuleDef }) {
         const a = jp(p.pins[0]),
           b = jp(p.pins[1]);
         if (!a || !b) return null;
-        return <Led key={p.id} id={`m.${p.id}`} color={p.color ?? "#ff2020"} x={mm((a.x + b.x) / 2 - W / 2)} z={mm((a.y + b.y) / 2 - H / 2)} />;
+        const [lx, ly] = p.mount ?? [(a.x + b.x) / 2, (a.y + b.y) / 2];
+        return <Led key={p.id} id={`m.${p.id}`} color={p.color ?? "#ff2020"} x={mm(lx - W / 2)} z={mm(ly - H / 2)} />;
       })}
       {knobs.map((p) => {
         const a = jp(p.pins[0]),
@@ -478,6 +563,9 @@ export function ModulePlate({ mod }: { mod: ModuleDef }) {
         const at = p.at ?? (a && b ? [(a.x + b.x) / 2 + 8, (a.y + b.y) / 2] : [0, 0]);
         return <Knob key={p.id} id={p.knob!} x={mm(at[0] - W / 2 + (p.kind === "POT" ? -9 : 0))} z={mm(at[1] - H / 2)} r={5} style="trimmer" />;
       })}
+      {(mod.props ?? []).map((p, i) => (
+        <BoardProp key={i} p={p} x={mm(p.x - W / 2)} z={mm(p.y - H / 2)} />
+      ))}
       {customParts.map((p) => (
         <CustomPart3D key={p.id} part={p} />
       ))}
@@ -754,7 +842,7 @@ function StaticDecor() {
         );
       })}
       <mesh position={[mx, 0.017, mz]} castShadow>
-        <boxGeometry args={[0.368 * ms, 0.003, 0.252 * ms]} />
+        <boxGeometry args={[mm(getModule("kl23001").size[0]) * ms, 0.003, mm(getModule("kl23001").size[1]) * ms]} />
         <meshStandardMaterial attach="material-2" map={tex} />
         <meshStandardMaterial attach="material-0" color="#d9d9d4" />
         <meshStandardMaterial attach="material-1" color="#d9d9d4" />
