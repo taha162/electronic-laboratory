@@ -29,7 +29,7 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 
 ## Variable resistors
 
-The experiment boards carry no trimmers of their own: as in the lab, the variable resistors are the KL-21001's VR1 (1KΩ), VR2 (10KΩ), VR3 (100KΩ) and VR4 (1MΩ). A board prints a dashed VR symbol (red label) where one is needed, and you patch the trainer's VR into those sockets with cords — e.g. Exp. 1 uses VR2 in block a of the KL-23001, and the cascade amplifier of the KL-23003 (block d, Fig. 6.3 of the manual) uses VR4 above Q1's base and VR3 below Q2's base.
+The KL-23001, KL-23002 and KL-23003 boards are laid out from photographs of the real K&H modules: every socket, symbol, label and dashed block border sits where it is on the board (src/lab/modules, mapped through the corner screws in photo.ts), with the DIP-switch cap, relay K1, push button S1 and the LEDs standing on top. The variable resistors are the KL-21001's VR1 (1KΩ), VR2 (10KΩ), VR3 (100KΩ) and VR4 (1MΩ): a board prints the VR symbol with its A / B / C sockets and you patch the trainer's VR into them with cords — e.g. Exp. 1 uses VR2 in block a of the KL-23001. The only on-board trimmer is R6 of the KL-23002 voltage multiplier.
 
 ## What you can do
 
@@ -37,7 +37,7 @@ The experiment boards carry no trimmers of their own: as in the lab, the variabl
 * **Wire circuits** – click a socket, then another socket. Neighbouring sockets on a module get a short-circuit clip, everything else a banana-plug patch cord in the selected colour. Click a cord to select it; Delete / double-click / right-click removes it.
 * **Use the instruments** – click a scope probe, ground clip or multimeter pen to pick it up, then click a socket to clip it on. Turn knobs by dragging or with the wheel (Shift = fine). Power switch on the right side of the KL-21001.
 * **FNIRSI oscilloscope** – the 3D screen is a touch screen: RUN/STOP, AUTO SET, T/V cursors, MEASURE, SAVE PIC (PNG), SAVE WAVE (CSV); CTRL (or clicking the screen) opens the full control panel (V/div, coupling AC/DC/GND, position, time/div, trigger source/edge/level/mode auto-normal-single). Measurements: Vpp, Vmax, Vmin, Vavg, Vrms, frequency, period.
-* **Experiments** – Exp. 1–6 of the 2026-2027 manual (diode test & characteristics, clippers & clampers, rectifiers, BJT characteristics, CE amplifiers, CB / switch / cascade) plus RC/RLC and op-amp circuits. Each step has instructions in Arabic and English, a “show me” auto-wiring, an electrical **wiring checker**, results tables you can fill with live readings, and plots.
+* **Experiments** – Exp. 1–6 of the 2026-2027 manual (diode test & characteristics, clippers & clampers, rectifiers, BJT characteristics, CE amplifiers, CB / switch / cascade) plus RC / RL integrator and differentiator circuits on block d of the KL-23002. Each step has instructions in Arabic and English, a “show me” auto-wiring, an electrical **wiring checker**, results tables you can fill with live readings, and plots.
 * **Custom circuits** – insert the universal breadboard module and place resistors, capacitors, inductors, diodes, Zeners, LEDs and transistors from the parts tray.
 * **Save** – the bench, instrument settings and result tables persist in the browser; named saves can be exported/imported as JSON.
 * **Real consequences** – supplies fold back into current limit on a short (the DC meter collapses to 0 V); a part dissipating above its rating smokes and, if left, burns out (open circuit, scorch mark) until you press *Replace*.

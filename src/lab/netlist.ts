@@ -232,6 +232,8 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
     for (let i = 1; i < ids.length; i++) uf.union(`m:${ids[0]}`, `m:${ids[i]}`);
   }
   for (const e of mod.earth ?? []) uf.union(`m:${e}`, EARTH);
+  // connections inside the module (the supply row is bused to the blocks)
+  for (const [x, y] of mod.links ?? []) uf.union(`m:${x}`, `m:${y}`);
   // trainer grounds
   for (const g of ["fg.gnd", "ps.gnd", "ps.gnd2", "ps.gnd3", "ps.gnd4", "adj.gnd"]) uf.union(`tr:${g}`, EARTH);
   // scope ground clips are bonded to mains earth through the scope chassis
@@ -344,6 +346,7 @@ export function buildCircuit(s: Snapshot, opts: BuildOptions = {}): BuiltCircuit
   };
   const addPart = (p: PartDef, prefix: string, gid: string) => {
     if (damaged.has(gid)) return; // burnt-out part = open circuit
+    if (p.deco || p.kind === "SW" || p.kind === "EXT") return; // printed only / open push button / patched from the trainer
     const n = p.pins.map((pin) => pinNode(pin, prefix));
     switch (p.kind) {
       case "R":

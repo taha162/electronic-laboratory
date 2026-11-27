@@ -3,7 +3,8 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { CustomPart, LeadId, PartKind, Wire, WireColor } from "@/lab/types";
 import { TRAINER_KNOBS } from "@/lab/trainer";
-import { MODULE_KNOB_DEFAULTS, getModule } from "@/lab/modules";
+import { MODULE_BY_ID, MODULE_KNOB_DEFAULTS, getModule } from "@/lab/modules";
+import { EXPERIMENT_BY_ID } from "@/lab/experiments";
 
 export type Lang = "ar" | "en";
 export type DmmMode = "off" | "dcv" | "acv" | "ohm" | "diode" | "dca" | "aca";
@@ -189,8 +190,23 @@ function hist(s: { wires: Wire[]; leads: Record<LeadId, string | null>; customPa
 }
 
 const PIN_COUNT: Record<PartKind, number> = {
-  R: 2, C: 2, CP: 2, L: 2, D: 2, Z: 2, LED: 2, NPN: 3, PNP: 3, POT: 3, RV: 2, OA: 5, EXT: 2,
+  R: 2, C: 2, CP: 2, L: 2, D: 2, Z: 2, LED: 2, NPN: 3, PNP: 3, POT: 3, RV: 2, OA: 5, EXT: 2, SW: 2,
 };
+
+/**
+ * Drop wiring that points at sockets a board no longer has (the boards were redrawn
+ * from photos of the real KL modules, so saved benches from before can hold stale ids).
+ */
+function sanitizeSnapshot<T extends Partial<Snapshot>>(snap: T): T | null {
+  const mod = snap.moduleId ? MODULE_BY_ID[snap.moduleId] : undefined;
+  if (snap.moduleId && !mod) return null;
+  const ok = (id: string | null | undefined) => !id || !id.startsWith("m:") || !!mod?.jacks.some((j) => !j.hidden && `m:${j.id}` === id);
+  const out = { ...snap };
+  if (snap.wires) out.wires = snap.wires.filter((w) => ok(w.a) && ok(w.b));
+  if (snap.leads) out.leads = Object.fromEntries(Object.entries(snap.leads).map(([k, v]) => [k, ok(v) ? v : null])) as Snapshot["leads"];
+  if (snap.customParts) out.customParts = snap.customParts.filter((p) => p.gpins.every(ok));
+  return out;
+}
 
 export const useBench = create<BenchState>()(
   persist(
@@ -370,9 +386,10 @@ export const useBench = create<BenchState>()(
         })),
       loadSave: (id) => {
         const sv = get().saves.find((x) => x.id === id);
-        if (!sv) return;
+        const snap = sv && sanitizeSnapshot(sv.snapshot);
+        if (!sv || !snap) return;
         set((s) => ({
-          ...sv.snapshot,
+          ...snap,
           experimentId: sv.experimentId,
           results: sv.experimentId ? { ...s.results, [sv.experimentId]: sv.results } : s.results,
           pending: null,
@@ -404,7 +421,7 @@ export const useBench = create<BenchState>()(
       // v3: the KL-21001 panel was re-laid out from the photographs (sockets, generator ranges).
       // Keep the student's saved work, results and settings; start the bench wiring fresh.
       // v4: the render quality is chosen per device again (phones start in the light renderer)
-      version: 4,
+      version: 5,
       migrate: (persisted, version) => {
         let p = { ...((persisted ?? {}) as Record<string, unknown>) };
         if (version < 3) {
@@ -413,6 +430,22 @@ export const useBench = create<BenchState>()(
           p = keep;
         }
         if (version < 4) delete p.quality;
+        if (version < 5) {
+          // boards rebuilt from the real KL modules: new socket ids, the KL-25001 is gone
+          const cur = sanitizeSnapshot(p as Partial<Snapshot>);
+          p = { ...p, ...(cur ?? { moduleId: "kl23001", wires: [], customParts: [], leads: { ...DEFAULT_LEADS } }), damaged: [] };
+          if (typeof p.experimentId === "string" && !EXPERIMENT_BY_ID[p.experimentId]) {
+            p.experimentId = null;
+            p.step = 0;
+          }
+          if (Array.isArray(p.saves))
+            p.saves = (p.saves as SavedExperiment[])
+              .map((sv) => {
+                const snap = sanitizeSnapshot(sv.snapshot);
+                return snap ? { ...sv, snapshot: snap } : null;
+              })
+              .filter(Boolean);
+        }
         // merge() below fills everything else from the defaults
         return p as never;
       },

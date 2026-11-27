@@ -400,11 +400,12 @@ export function moduleTexture(m: ModuleDef) {
     );
     // students' pen notes (like on the real boards)
     if (m.id === "kl23001") {
-      handNote(ctx, "Vp=5V", 300, 128, 4.2, "#22348f", -0.06);
-      handNote(ctx, "x", 129, 31, 4, "#22348f", 0.2);
-      handNote(ctx, "+12", 6, 32, 3.4, "#a01818", -0.1);
+      handNote(ctx, "Vp=5V", 152, 215, 4.2, "#22348f", -0.06);
+    } else if (m.id === "kl23002") {
+      // the lab's board carries a pencilled "OK" by the supply sockets
+      handNote(ctx, "OK", 306, 46, 6.5, "#3a3a3a", -0.12);
     } else if (m.id === "kl23003") {
-      handNote(ctx, "VCE=6V", 130, 160, 3.8, "#22348f", -0.04);
+      handNote(ctx, "VCE=6V", 25, 53, 3.8, "#22348f", -0.04);
     }
     return toTexture(c, { aniso: 16 });
   });
