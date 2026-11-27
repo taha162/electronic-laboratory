@@ -18,6 +18,7 @@ import {
   VR_LABELS,
 } from "@/lab/trainer";
 import type { ModuleDef } from "@/lab/types";
+import { grain } from "./grain";
 import { drawModuleFace } from "./schematic";
 
 const cache = new Map<string, THREE.Texture>();
@@ -173,10 +174,7 @@ export function trainerPanelTexture() {
     // light grey printed aluminium panel (as photographed), faint grain
     ctx.fillStyle = "#e3e4e0";
     ctx.fillRect(0, 0, TRAINER_W, TRAINER_H);
-    for (let i = 0; i < 14000; i++) {
-      ctx.fillStyle = `rgba(70,72,80,${Math.random() * 0.025})`;
-      ctx.fillRect(Math.random() * TRAINER_W, Math.random() * TRAINER_H, 0.45, 0.45);
-    }
+    grain(ctx, [70, 72, 80], 0.03, 0.05, 11);
     ctx.strokeStyle = INK;
     ctx.fillStyle = INK;
     // thick black border line
@@ -557,12 +555,6 @@ export function draw7seg(
 /* -------------------------------------------------------------- */
 /* Environment textures                                            */
 /* -------------------------------------------------------------- */
-function noise(ctx: CanvasRenderingContext2D, w: number, h: number, n: number, rgb: string, a: number, s = 1) {
-  for (let i = 0; i < n; i++) {
-    ctx.fillStyle = `rgba(${rgb},${Math.random() * a})`;
-    ctx.fillRect(Math.random() * w, Math.random() * h, s, s);
-  }
-}
 
 
 
@@ -574,7 +566,7 @@ export function deskTexture() {
     const ctx = c.getContext("2d")!;
     ctx.fillStyle = "#e9e8e4";
     ctx.fillRect(0, 0, W, H);
-    noise(ctx, W, H, 60000, "120,120,115", 0.05, 2);
+    grain(ctx, [120, 120, 115], 0.06, 0.18, 23);
     return toTexture(c);
   });
 }

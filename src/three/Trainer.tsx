@@ -301,16 +301,13 @@ function PowerSwitch() {
 /* Module plate                                                      */
 /* ---------------------------------------------------------------- */
 function Led({ id, color, x, z }: { id: string; color: string; x: number; z: number }) {
-  const mat = useMemo(
-    () => new THREE.MeshPhysicalMaterial({ color, emissive: color, emissiveIntensity: 0, roughness: 0.15, transmission: 0.2, transparent: true, opacity: 0.92 }),
-    [color],
-  );
-  const light = useRef<THREE.PointLight>(null);
+  // emissive epoxy only: no per-LED point light (adding lights recompiles every material in the
+  // scene — the stall when switching boards) and no transmission (an extra scene pass per frame)
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0, roughness: 0.2 }), [color]);
   useFrame(() => {
     const i = useSim.getState().readings.led[id] ?? 0;
     const b = Math.min(Math.max(i / 0.01, 0), 1.6);
     mat.emissiveIntensity = b * 3.2;
-    if (light.current) light.current.intensity = b * 0.03;
   });
   return (
     <group position={[x, 0, z]}>
@@ -320,7 +317,6 @@ function Led({ id, color, x, z }: { id: string; color: string; x: number; z: num
       <mesh position={[0, 0.006, 0]} material={mat}>
         <sphereGeometry args={[0.0027, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
       </mesh>
-      <pointLight ref={light} position={[0, 0.012, 0]} color={color} distance={0.08} decay={2} intensity={0} />
     </group>
   );
 }
