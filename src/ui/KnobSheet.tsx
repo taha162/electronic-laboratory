@@ -7,13 +7,6 @@ import { Icon } from "./icons";
 import { useT } from "./i18n";
 import { usePhone } from "./usePhone";
 
-/** module trimmers: name printed on the board and full-scale resistance */
-const MODULE_KNOBS: Record<string, { label: string; ohms: number }> = {
-  "m.vr1": { label: "VR1 (1K)", ohms: 1e3 },
-  "m.vr5": { label: "VR 1M", ohms: 1e6 },
-  "m.vr6": { label: "VR 1M", ohms: 1e6 },
-};
-
 const WAVE_ICONS = ["sine", "triangle", "square"] as const;
 
 /**
@@ -28,11 +21,10 @@ export function KnobSheet() {
   if (!id) return null;
   const v = knobs[id] ?? 0;
   const def = TRAINER_KNOBS.find((k) => k.id === id);
-  const mod = MODULE_KNOBS[id];
   const set = (x: number) => useBench.getState().setKnob(id, x);
   const close = () => useUi.getState().setCtrl(null);
 
-  let title = def?.label || mod?.label || id;
+  let title = def?.label || id;
   let reading = `${Math.round(v * 100)} %`;
   if (id === "fg.amp") reading = `${fgAmplitudeVpp(v).toFixed(2)} Vpp`;
   if (id === "fg.freq") reading = fmtEng(fgFrequency(knobs["fg.range"] ?? 2, v), "Hz");
@@ -45,7 +37,6 @@ export function KnobSheet() {
     const R = VR_VALUES[id];
     reading = `A–B ${fmtEng(v * R, "Ω")} · B–C ${fmtEng((1 - v) * R, "Ω")}`;
   }
-  if (mod) reading = `${Math.round(v * 100)} % · ${fmtEng(v * mod.ohms, "Ω")}`;
 
   const detents = def?.detents ?? 0;
   const pos = phone ? (landscape ? "bottom-[4.4rem] end-2 w-[22rem]" : "inset-x-2 bottom-[7.6rem]") : "bottom-24 start-1/2 w-[26rem] -translate-x-1/2 rtl:translate-x-1/2";

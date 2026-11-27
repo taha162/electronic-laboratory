@@ -2,10 +2,11 @@
 import * as THREE from "three";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment, Lightformer, PerformanceMonitor } from "@react-three/drei";
+import { ContactShadows, Environment, Lightformer, PerformanceMonitor } from "@react-three/drei";
 import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping, Vignette, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
 import { ToneMappingMode, BlendFunction } from "postprocessing";
 import { useBench } from "@/store/bench";
+import { useSim } from "@/lab/simController";
 import { Bench } from "./Bench";
 import { Trainer } from "./Trainer";
 import { Oscilloscope } from "./Oscilloscope";
@@ -15,6 +16,11 @@ import { CameraRig } from "./CameraRig";
 import { anchorWorld, useUi } from "./registry";
 import { Guide, Insight } from "./Overlays3D";
 import { Clarity } from "./fx/Clarity";
+import { useLoad } from "@/ui/loadProgress";
+import { preparePrints } from "./preparePrints";
+
+// this module arriving means the 3D engine and simulator code are loaded
+if (typeof window !== "undefined") useLoad.getState().reach("engine", 30);
 
 
 /**
@@ -36,17 +42,81 @@ function ShadowThrottle() {
   return null;
 }
 
+/**
+ * Light renderer (phones): the canvas is not redrawn 60 times a second. Frames are
+ * drawn while you touch / drag / zoom (and for a moment after), at 20 fps while
+ * the trainer is powered (meters, scope and multimeter are live) or a guide /
+ * X-ray overlay is animating, and not at all when the bench is idle.
+ */
+function DemandTicker() {
+  const invalidate = useThree((s) => s.invalidate);
+  const quality = useBench((s) => s.quality);
+  useEffect(() => {
+    if (quality === "high") return;
+    let lastInput = performance.now();
+    let lastLive = 0;
+    const bump = () => {
+      lastInput = performance.now();
+      invalidate();
+    };
+    const evs = ["pointerdown", "pointermove", "pointerup", "wheel", "keydown", "touchmove"] as const;
+    for (const e of evs) window.addEventListener(e, bump, { passive: true });
+    const unsub = [useBench.subscribe(bump), useSim.subscribe(() => invalidate())];
+    let raf = 0;
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      if (now - lastInput < 1200) {
+        invalidate();
+        return;
+      }
+      const ui = useUi.getState();
+      const live = useBench.getState().power || ui.insight || ui.guide || !ui.ready;
+      if (live && now - lastLive > 50) {
+        lastLive = now;
+        invalidate();
+      }
+    };
+    raf = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(raf);
+      for (const e of evs) window.removeEventListener(e, bump);
+      unsub.forEach((u) => u());
+    };
+  }, [quality, invalidate]);
+  return null;
+}
+
+/** light renderer: a soft shadow under the equipment, drawn once instead of every frame */
+function StaticShadows() {
+  const quality = useBench((s) => s.quality);
+  const devices = useBench((s) => s.devices);
+  if (quality === "high") return null;
+  return (
+    <ContactShadows
+      key={JSON.stringify(devices)}
+      position={[0.02, DESK_Y + 0.0006, -0.02]}
+      scale={[1.7, 0.92]}
+      resolution={512}
+      blur={2.2}
+      far={0.35}
+      opacity={0.55}
+      frames={1}
+      color="#2a2620"
+    />
+  );
+}
+
 function Lights() {
   const sun = useRef<THREE.DirectionalLight>(null);
   const light = useBench((s) => s.quality) !== "high";
   return (
     <>
-      <hemisphereLight args={["#f4f7ff", "#b9aa8e", 0.95]} />
+      <hemisphereLight args={["#f4f7ff", "#b9aa8e", 0.85]} />
       {/* daylight from the window wall (behind the equipment, as in the photographs) */}
       <directionalLight
         ref={sun}
         position={[-0.9, 3.6, -3.4]}
-        intensity={1.42}
+        intensity={1.2}
         color="#fff6ea"
         castShadow
         shadow-mapSize={light ? [1024, 1024] : [2048, 2048]}
@@ -64,10 +134,8 @@ function Lights() {
         <object3D attach="target" position={[0, DESK_Y, 0.05]} />
       </directionalLight>
       {/* window band and ceiling tubes as two cheap directional fills */}
-      <directionalLight position={[0.4, 2.2, -3]} intensity={0.85} color="#f3f6ff" />
-      <directionalLight position={[0.3, 4, 1.6]} intensity={0.75} color="#f8fbff" />
-      {/* soft overhead fill so the bench never looks flat-black */}
-      <spotLight position={[0.05, 2.9, 0.35]} angle={0.75} penumbra={1} intensity={6} distance={5} decay={2} color="#fffaf2" />
+      <directionalLight position={[0.4, 2.2, -3]} intensity={0.6} color="#f3f6ff" />
+      <directionalLight position={[-0.6, 3, 2.2]} intensity={0.55} color="#f8fbff" />
     </>
   );
 }
@@ -184,12 +252,51 @@ function ReadySignal() {
   const n = useRef(0);
   useFrame(() => {
     n.current++;
+    if (useLoad.getState().pct >= 88) useLoad.getState().reach("frames", 90 + n.current * 3);
     if (n.current === 3) useUi.getState().setReady(true);
   });
   return null;
 }
 
+/** compile every GPU program up front (behind the loading screen) instead of stuttering later */
+function CompileWarmup() {
+  const get = useThree((s) => s.get);
+  useEffect(() => {
+    const { gl, scene, camera, invalidate } = get();
+    useLoad.getState().reach("shaders", 64);
+    let alive = true;
+    const t0 = performance.now();
+    // creep the bar while the driver works, then finish the stage
+    const id = setInterval(() => alive && useLoad.getState().reach("shaders", Math.min(87, 64 + (performance.now() - t0) / 120)), 150);
+    const done = () => {
+      if (!alive) return;
+      clearInterval(id);
+      useLoad.getState().reach("frames", 90);
+      invalidate();
+    };
+    (gl.compileAsync ? gl.compileAsync(scene, camera) : Promise.resolve(gl.compile(scene, camera))).then(done, done);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [get]);
+  return null;
+}
+
 export default function LabScene() {
+  const [prepared, setPrepared] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    preparePrints().then(() => alive && setPrepared(true));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  if (!prepared) return null;
+  return <LabCanvas />;
+}
+
+function LabCanvas() {
   const quality = useBench((s) => s.quality);
   // the light renderer can afford the phone's 2x pixels (text on the panels stays legible)
   const maxDpr = (_q: string) => Math.min(typeof window === "undefined" ? 1 : window.devicePixelRatio || 1, 2);
@@ -200,7 +307,9 @@ export default function LabScene() {
   const renderDpr = Number.isFinite(pinned) ? Math.min(Math.max(pinned, 0.5), 3) : dpr;
   return (
     <Canvas
-      shadows={quality === "high" ? "variance" : "soft"}
+      shadows={quality === "high" ? "variance" : false}
+      // light renderer: draw a frame only when something changes (see DemandTicker)
+      frameloop={quality === "high" ? "always" : "demand"}
       dpr={renderDpr}
       gl={{ antialias: quality !== "high", powerPreference: "high-performance", preserveDrawingBuffer: true, stencil: false }}
       camera={{ fov: 46, near: 0.01, far: 40, position: [5.4, 1.62, 5.6] }}
@@ -215,12 +324,14 @@ export default function LabScene() {
       />
       <GlSettings />
       <ShadowThrottle />
+      <DemandTicker />
       <ResponsiveFov />
       <color attach="background" args={["#e7e3da"]} />
       <Lights />
       <Suspense fallback={null}>
         <Env />
         <Bench />
+        <StaticShadows />
         <Trainer position={[0.03, DESK_Y, -0.07]} />
         <Oscilloscope />
         <Multimeter />
@@ -229,6 +340,7 @@ export default function LabScene() {
         <Guide />
         <Insight />
         <Effects />
+        <CompileWarmup />
       </Suspense>
       <PointerTracker />
       <CameraRig />

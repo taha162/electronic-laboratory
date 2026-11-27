@@ -8,4 +8,4 @@ export function getModule(id: string): ModuleDef {
   return MODULE_BY_ID[id] ?? KL23001;
 }
 /** knobs that live on modules (trimmers) and their default positions */
-export const MODULE_KNOB_DEFAULTS: Record<string, number> = { "m.vr1": 0.3, "m.vr5": 0.6, "m.vr6": 0.6 };
+export const MODULE_KNOB_DEFAULTS: Record<string, number> = {};

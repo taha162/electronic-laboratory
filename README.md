@@ -27,6 +27,10 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 * **Double-tap** anywhere on the bench to zoom straight to that spot; double-tap again to zoom back out. Pinch to zoom, two fingers to pan.
 * The interface shrinks to one bar at the top (rarely used buttons under ⋯), a line of live readings, and the view chips with the bench controls at the bottom.
 
+## Variable resistors
+
+The experiment boards carry no trimmers of their own: as in the lab, the variable resistors are the KL-21001's VR1 (1KΩ), VR2 (10KΩ), VR3 (100KΩ) and VR4 (1MΩ). A board prints a dashed VR symbol (red label) where one is needed, and you patch the trainer's VR into those sockets with cords — e.g. Exp. 1 uses VR2 in block a of the KL-23001, and the cascade amplifier of the KL-23003 (block d, Fig. 6.3 of the manual) uses VR4 above Q1's base and VR3 below Q2's base.
+
 ## What you can do
 
 * **Look at the bench** – drag to turn the view, wheel / pinch to zoom, right-drag / two fingers to pan, double-click / double-tap a spot to zoom to it. Views: Seat, Meters, Module, Generator, Supplies, VR1–VR4, Scope, Multimeter.

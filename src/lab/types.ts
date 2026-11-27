@@ -26,7 +26,8 @@ export type PartKind =
   | "PNP"
   | "POT" // pins: [A, wiper, C]
   | "RV" // rheostat on the module: value = min + knob * value
-  | "OA"; // pins: [in-, in+, out, V+, V-]
+  | "OA" // pins: [in-, in+, out, V+, V-]
+  | "EXT"; // printed placeholder: the student connects a KL-21001 part here (not simulated)
 
 export interface PartDef {
   id: string;
@@ -51,6 +52,8 @@ export interface PartDef {
   min?: number;
   /** RV / POT on module: knob id (global knob state key) */
   knob?: string;
+  /** EXT: how it is drawn (pot = 3 pins A/wiper/C, rheostat = 2 pins) */
+  ext?: "pot" | "rheostat";
   /** don't draw lead lines (used for custom/breadboard parts) */
   noLeads?: boolean;
 }

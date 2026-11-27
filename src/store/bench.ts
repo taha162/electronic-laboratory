@@ -189,7 +189,7 @@ function hist(s: { wires: Wire[]; leads: Record<LeadId, string | null>; customPa
 }
 
 const PIN_COUNT: Record<PartKind, number> = {
-  R: 2, C: 2, CP: 2, L: 2, D: 2, Z: 2, LED: 2, NPN: 3, PNP: 3, POT: 3, RV: 2, OA: 5,
+  R: 2, C: 2, CP: 2, L: 2, D: 2, Z: 2, LED: 2, NPN: 3, PNP: 3, POT: 3, RV: 2, OA: 5, EXT: 2,
 };
 
 export const useBench = create<BenchState>()(
