@@ -3,6 +3,7 @@
  * All coordinates are in millimetres; the caller scales the context.
  */
 import type { ModuleDef, PartDef } from "@/lab/types";
+import { grain } from "./grain";
 
 type P = [number, number];
 const INK = "#101010";
@@ -120,13 +121,17 @@ export function drawPart(ctx: CanvasRenderingContext2D, p: PartDef, jackPos: (id
         const a = pins[0],
           b = pins[p.ext === "pot" ? 2 : 1] ?? pins[1];
         const mid: P = p.at ?? [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        const horizontal = Math.abs(b[0] - a[0]) > Math.abs(b[1] - a[1]);
         ctx.fillStyle = "#b3261e";
         ctx.font = "bold 3.4px Arial";
-        ctx.textAlign = "right";
+        ctx.textAlign = horizontal ? "center" : "right";
         ctx.textBaseline = "middle";
-        if (p.label) ctx.fillText(p.label, mid[0] - 7, mid[1] - 2);
+        // horizontal: labels above the symbol; vertical: to its left
+        const lx = horizontal ? mid[0] : mid[0] - 7;
+        const ly = horizontal ? mid[1] - 8.2 : mid[1] - 2;
+        if (p.label) ctx.fillText(p.label, lx, ly);
         ctx.font = "bold 2.9px Arial";
-        if (p.text) ctx.fillText(p.text, mid[0] - 7, mid[1] + 2.2);
+        if (p.text) ctx.fillText(p.text, lx, ly + 4.2);
         ctx.fillStyle = INK;
       }
       return;
@@ -309,10 +314,7 @@ export function drawModuleFace(ctx: CanvasRenderingContext2D, m: ModuleDef) {
   ctx.fillStyle = "#f4f4ef";
   ctx.fillRect(0, 0, W, H);
   // subtle paper / plastic grain
-  for (let i = 0; i < 2500; i++) {
-    ctx.fillStyle = `rgba(0,0,0,${Math.random() * 0.018})`;
-    ctx.fillRect(Math.random() * W, Math.random() * H, 0.4, 0.4);
-  }
+  grain(ctx, [0, 0, 0], 0.02, 0.03, 5);
   // title bar
   ctx.fillStyle = INK;
   ctx.strokeStyle = INK;

@@ -1,10 +1,8 @@
 "use client";
 import * as THREE from "three";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { ContactShadows, Environment, Lightformer, PerformanceMonitor } from "@react-three/drei";
-import { EffectComposer, N8AO, Bloom, SMAA, ToneMapping, Vignette, BrightnessContrast, HueSaturation } from "@react-three/postprocessing";
-import { ToneMappingMode, BlendFunction } from "postprocessing";
 import { useBench } from "@/store/bench";
 import { useSim } from "@/lab/simController";
 import { Bench } from "./Bench";
@@ -15,9 +13,13 @@ import { Leads, PointerTracker, Wires, DESK_Y } from "./Cables";
 import { CameraRig } from "./CameraRig";
 import { anchorWorld, useUi } from "./registry";
 import { Guide, Insight } from "./Overlays3D";
-import { Clarity } from "./fx/Clarity";
 import { useLoad } from "@/ui/loadProgress";
 import { preparePrints } from "./preparePrints";
+import { MODULES } from "@/lab/modules";
+import { moduleTexture } from "./draw/textures";
+
+// post-processing (desktop "high" quality only) is a separate download, phones never fetch it
+const Effects = lazy(() => import("./Effects"));
 
 // this module arriving means the 3D engine and simulator code are loaded
 if (typeof window !== "undefined") useLoad.getState().reach("engine", 30);
@@ -157,29 +159,6 @@ function Env() {
   );
 }
 
-/**
- * Sharp, clear image: no depth-of-field blur, no film grain, no haze. Everything
- * is in focus; ambient occlusion and the key light's shadows give the depth, and
- * a final clarity pass (adaptive sharpening + dehaze) keeps the print crisp.
- */
-function Effects() {
-  const quality = useBench((s) => s.quality);
-  const dpr = useThree((s) => s.viewport.dpr);
-  if (quality !== "high") return null;
-  return (
-    <EffectComposer multisampling={0} enableNormalPass={false} frameBufferType={THREE.HalfFloatType}>
-      {/* full-resolution AO unless the canvas is already supersampled */}
-      <N8AO aoRadius={0.07} distanceFalloff={0.5} intensity={2.9} halfRes={dpr >= 1.5} quality="medium" color="#241f18" />
-      <Bloom mipmapBlur intensity={0.4} luminanceThreshold={2.6} luminanceSmoothing={0.4} radius={0.55} />
-      <ToneMapping mode={ToneMappingMode.AGX} />
-      <HueSaturation saturation={0.19} />
-      <BrightnessContrast brightness={0.0} contrast={0.12} />
-      <Vignette offset={0.38} darkness={0.26} blendFunction={BlendFunction.NORMAL} />
-      <SMAA />
-      <Clarity sharpness={0.75} clarity={0.45} dehaze={0.85} />
-    </EffectComposer>
-  );
-}
 
 function KeyboardShortcuts() {
   useEffect(() => {
@@ -258,6 +237,36 @@ function ReadySignal() {
   return null;
 }
 
+/**
+ * After the lab is open, draw and upload the other experiment boards in idle
+ * moments, one at a time, so switching boards later is instant.
+ */
+function PrewarmBoards() {
+  const get = useThree((s) => s.get);
+  const ready = useUi((s) => s.ready);
+  useEffect(() => {
+    if (!ready) return;
+    let alive = true;
+    const idle = (fn: () => void) =>
+      "requestIdleCallback" in window ? (window as Window & { requestIdleCallback(cb: () => void, o?: object): number }).requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 600);
+    const list = MODULES.slice();
+    const next = () => {
+      if (!alive) return;
+      const m = list.shift();
+      if (!m) return;
+      const t = moduleTexture(m);
+      get().gl.initTexture(t);
+      idle(next);
+    };
+    const id = setTimeout(() => idle(next), 1500);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [ready, get]);
+  return null;
+}
+
 /** compile every GPU program up front (behind the loading screen) instead of stuttering later */
 function CompileWarmup() {
   const get = useThree((s) => s.get);
@@ -268,9 +277,25 @@ function CompileWarmup() {
     const t0 = performance.now();
     // creep the bar while the driver works, then finish the stage
     const id = setInterval(() => alive && useLoad.getState().reach("shaders", Math.min(87, 64 + (performance.now() - t0) / 120)), 150);
-    const done = () => {
+    const done = async () => {
       if (!alive) return;
       clearInterval(id);
+      // upload the big textures to the GPU now, one per tick, instead of during the first frames
+      const texs = new Set<THREE.Texture>();
+      scene.traverse((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+        for (const mm of m ? (Array.isArray(m) ? m : [m]) : []) {
+          const map = (mm as THREE.MeshStandardMaterial).map;
+          if (map && map.image) texs.add(map);
+        }
+      });
+      let k = 0;
+      for (const t of texs) {
+        if (!alive) return;
+        gl.initTexture(t);
+        useLoad.getState().reach("shaders", 87 + (3 * ++k) / texs.size);
+        await new Promise((r) => setTimeout(r, 0));
+      }
       useLoad.getState().reach("frames", 90);
       invalidate();
     };
@@ -339,8 +364,9 @@ function LabCanvas() {
         <Leads />
         <Guide />
         <Insight />
-        <Effects />
+        {quality === "high" && <Effects />}
         <CompileWarmup />
+        <PrewarmBoards />
       </Suspense>
       <PointerTracker />
       <CameraRig />
