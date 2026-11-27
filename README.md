@@ -23,7 +23,7 @@ npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiri
 ## The 2D bench
 
 * Every printed face — the KL-21001 panel, the module boards, the meter scales, the instrument fronts — is drawn once with the canvas API and replayed into **SVG** (`src/draw/svgctx.ts`), so the print stays sharp at any zoom and costs no GPU. There is no 3D engine to download: the page loads in about a second.
-* Drag to move around, pinch or wheel to zoom, **double-tap** the bench to zoom to that spot (again to zoom out). The view chips (Whole bench, Meters, Board, Generator, Supplies, VR1–VR4, Scope, Multimeters) frame a part of the bench in portrait or landscape.
+* Drag to move around (a flick keeps it gliding), pinch or wheel to zoom, **double-tap** the bench to zoom to that spot (again to zoom out), or double-tap and drag down / up to zoom with one finger. On a trackpad two fingers move the bench and a pinch zooms. A pinch works anywhere, even when a finger lands on a knob. The view chips (Whole bench, Meters, Board, Generator, Supplies, VR1–VR4, Scope, Multimeters) frame a part of the bench in portrait or landscape; the page itself never zooms.
 * On phones the interface shrinks to one bar at the top (rarely used buttons under ⋯), a line of live readings, and the view chips with the bench controls at the bottom.
 
 ## Variable resistors
@@ -32,7 +32,7 @@ The KL-23001, KL-23002 and KL-23003 boards are laid out from photographs of the 
 
 ## What you can do
 
-* **Move around the bench** – drag to pan, wheel / pinch to zoom, double-tap a spot to zoom to it. Views: Whole bench, Meters, Board, Generator, Supplies, VR1–VR4, Scope, Multimeters.
+* **Move around the bench** – drag to pan (flick to glide), wheel / pinch to zoom, double-tap a spot to zoom to it, double-tap and drag for one-finger zoom. Views: Whole bench, Meters, Board, Generator, Supplies, VR1–VR4, Scope, Multimeters.
 * **Wire circuits** – tap a socket, then another socket. Neighbouring sockets on a module get a short-circuit clip, everything else a banana-plug patch cord in the selected colour. Tap a cord to select it; its red ✕ (or Delete) removes it.
 * **Use the instruments** – tap a scope probe, ground clip or multimeter pen to pick it up, then tap a socket to clip it on (a scope's ground clip hangs from its probe). Turn knobs by dragging up/down or with the wheel, or tap one for a large control with the exact value. Each multimeter has its own function dial. Power switch on the right side of the KL-21001.
 * **FNIRSI oscilloscope** – the screen is a touch screen: RUN/STOP, AUTO SET, T/V cursors, MEASURE, SAVE PIC (PNG), SAVE WAVE (CSV); CTRL (or clicking the screen) opens the full control panel (V/div, coupling AC/DC/GND, position, time/div, trigger source/edge/level/mode auto-normal-single). Measurements: Vpp, Vmax, Vmin, Vavg, Vrms, frequency, period.

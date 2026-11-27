@@ -7,10 +7,11 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
   title: "مختبر الدوائر الإلكترونية | Electronic Circuits Lab",
-  description: "Interactive 3D replica of the University of Mosul electronic circuits laboratory with KL-21001 trainer, FNIRSI oscilloscope and a real circuit simulator.",
+  description: "Interactive 2D replica of the University of Mosul electronic circuits laboratory with KL-21001 trainer, FNIRSI oscilloscope and a real circuit simulator.",
 };
 
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#1a1d22" };
+// the bench has its own pan / zoom; the page itself stays put (no browser zoom on the bars)
+export const viewport: Viewport = { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, themeColor: "#1a1d22" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
