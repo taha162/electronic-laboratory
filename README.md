@@ -20,6 +20,13 @@ npm run test:sim   # solver checks against textbook results
 npx tsx scripts/exp-test.ts   # simulates every experiment step's reference wiring
 ```
 
+## Phones and tablets
+
+* Phones and tablets start in the **light renderer** automatically (no area lights, no post-processing, shadows refreshed a few times a second); the ◐ button switches quality at any time.
+* Each **view** (Seat, Meters, Module, Generator, Supplies, VR1–VR4, Scope, Multimeter) fits its part of the bench to the screen in portrait or landscape, at a steeper angle on a portrait phone so the panel print faces you.
+* **Double-tap** anywhere on the bench to zoom straight to that spot; double-tap again to zoom back out. Pinch to zoom, two fingers to pan.
+* The interface shrinks to one bar at the top (rarely used buttons under ⋯), a line of live readings, and the view chips with the bench controls at the bottom.
+
 ## What you can do
 
 * **Sit at the bench or walk around the room** – *Experiment* mode seats you in front of the trainer; *Explore* mode lets you walk (W A S D / arrows, Q/E up-down, Shift faster). Drag to look, wheel to lean in (zooms toward the cursor), right-drag to pan. Camera presets: seat, module, generator, supplies, scope, multimeter, room.

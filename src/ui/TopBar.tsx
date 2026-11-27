@@ -1,8 +1,10 @@
 "use client";
+import { useState } from "react";
 import { useBench } from "@/store/bench";
 import { EXPERIMENT_BY_ID } from "@/lab/experiments";
 import { useT } from "./i18n";
 import { useUi } from "@/three/registry";
+import { usePhone } from "./usePhone";
 
 export function TopBar() {
   const { t, lang } = useT();
@@ -15,49 +17,69 @@ export function TopBar() {
   const insight = useUi((s) => s.insight);
   const st = useBench.getState();
   const exp = expId ? EXPERIMENT_BY_ID[expId] : null;
+  const [more, setMore] = useState(false);
+  const { phone } = usePhone();
+  const extras = (
+    <>
+      <button className="btn" data-on={sound} title={t("sound")} onClick={() => st.setSound(!sound)}>
+        {sound ? "🔊" : "🔇"} {phone && <span>{t("sound")}</span>}
+      </button>
+      <button className="btn" title={t("photo")} onClick={() => useUi.getState().setPhoto(true)}>
+        📷 {phone && <span>{t("photo")}</span>}
+      </button>
+      <button className="btn" data-on={panel === "help"} onClick={() => st.setPanel("help")}>
+        ? {phone && <span>{t("help")}</span>}
+      </button>
+      <button className="btn" title={t("quality")} onClick={() => st.setQuality(quality === "high" ? "low" : "high")}>
+        ◐ {quality === "high" ? t("high") : t("low")}
+      </button>
+      <button className="btn font-semibold" onClick={() => st.setLang(lang === "ar" ? "en" : "ar")}>
+        {lang === "ar" ? "EN" : "عربي"}
+      </button>
+    </>
+  );
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-2 p-2 sm:p-3">
-      <div className="glass pointer-events-auto flex max-w-full items-center gap-2 rounded-xl px-2.5 py-2 sm:gap-3 sm:px-3">
-        <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--color-accent)] text-[13px] font-bold text-black">KL</div>
-        <div className="hidden leading-tight sm:block">
-          <div className="text-sm font-semibold">{t("appTitle")}</div>
-          <div className="text-[11px] text-[var(--color-mute)]">
-            {exp ? `${lang === "ar" ? "التجربة" : "Exp."} ${exp.no} · ${exp.title[lang]} · ${t("step")} ${step + 1}/${exp.steps.length}` : t("appSub")}
+    <div className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between ${phone ? "gap-1.5 p-2" : "flex-wrap gap-2 p-3"}`}>
+      <div className={`glass pointer-events-auto flex shrink-0 items-center rounded-xl ${phone ? "gap-1.5 px-1.5 py-1.5" : "gap-3 px-3 py-2"}`}>
+        <div className={`grid place-items-center rounded-lg bg-[var(--color-accent)] font-bold text-black ${phone ? "h-7 w-7 text-[12px]" : "h-8 w-8 text-[13px]"}`}>KL</div>
+        {!phone && (
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">{t("appTitle")}</div>
+            <div className="text-[11px] text-[var(--color-mute)]">
+              {exp ? `${lang === "ar" ? "التجربة" : "Exp."} ${exp.no} · ${exp.title[lang]} · ${t("step")} ${step + 1}/${exp.steps.length}` : t("appSub")}
+            </div>
           </div>
-        </div>
-        <div className="ms-2 flex rounded-lg bg-white/5 p-0.5">
+        )}
+        <div className={`flex rounded-lg bg-white/5 p-0.5 ${phone ? "" : "ms-2"}`}>
           {(["experiment", "explore"] as const).map((m) => (
-            <button key={m} className="btn !border-0 !py-1.5" data-on={mode === m} onClick={() => st.setMode(m)}>
+            <button key={m} className={`btn !border-0 ${phone ? "!px-2 !py-1" : "!py-1.5"}`} data-on={mode === m} onClick={() => st.setMode(m)}>
               {t(m)}
             </button>
           ))}
         </div>
       </div>
-      <div className="glass scroll-thin pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-xl px-2 py-1.5">
+      <div className={`glass pointer-events-auto relative flex items-center rounded-xl ${phone ? "gap-1 px-1.5 py-1.5" : "gap-1.5 px-2 py-1.5"}`}>
         <button className="btn" data-on={panel === "experiment"} onClick={() => st.setPanel("experiment")}>
-          ⚗ <span className="hidden sm:inline">{t("experiments")}</span>
+          ⚗ {!phone && <span>{t("experiments")}</span>}
         </button>
         <button className="btn" data-on={panel === "saves"} onClick={() => st.setPanel("saves")}>
-          ⤓ <span className="hidden sm:inline">{t("saves")}</span>
+          ⤓ {!phone && <span>{t("saves")}</span>}
         </button>
         <button className="btn" data-on={insight} title={t("insightTip")} onClick={() => useUi.getState().setInsight(!insight)}>
           ⚛ <span className="hidden lg:inline">{t("insight")}</span>
         </button>
-        <button className="btn" data-on={sound} title={t("sound")} onClick={() => st.setSound(!sound)}>
-          {sound ? "🔊" : "🔇"}
-        </button>
-        <button className="btn" title={t("photo")} onClick={() => useUi.getState().setPhoto(true)}>
-          📷
-        </button>
-        <button className="btn" data-on={panel === "help"} onClick={() => st.setPanel("help")}>
-          ?
-        </button>
-        <button className="btn" title={t("quality")} onClick={() => st.setQuality(quality === "high" ? "low" : "high")}>
-          ◐ {quality === "high" ? t("high") : t("low")}
-        </button>
-        <button className="btn font-semibold" onClick={() => st.setLang(lang === "ar" ? "en" : "ar")}>
-          {lang === "ar" ? "EN" : "عربي"}
-        </button>
+        {!phone && <div className="flex items-center gap-1.5">{extras}</div>}
+        {/* phones: the rarely used buttons live in a small menu */}
+        {phone && (
+          <button className="btn" data-on={more} aria-label="more" onClick={() => setMore(!more)}>
+            ⋯
+          </button>
+        )}
+        {phone && more && (
+          <div className="glass absolute end-0 top-[calc(100%+6px)] z-40 flex w-44 flex-col gap-1 rounded-xl p-1.5" onClick={() => setMore(false)}>
+            {extras}
+          </div>
+        )}
       </div>
     </div>
   );

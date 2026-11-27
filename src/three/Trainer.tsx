@@ -8,8 +8,9 @@ import { useSim } from "@/lab/simController";
 import { DVM_RECT, MODULE_SLOT, SCREWS, TRAINER_H, TRAINER_JACKS, TRAINER_KNOBS, TRAINER_METERS, TRAINER_W } from "@/lab/trainer";
 import { getModule } from "@/lab/modules";
 import type { ModuleDef } from "@/lab/types";
-import { BananaJack, Knob, PinJacks } from "./Controls";
-import { MAT, plastic } from "./materials";
+import { BananaJack, JackVisuals, Knob, PinJacks } from "./Controls";
+import { MergeStatic } from "./MergeStatic";
+import { MAT, PLASTIC_COLORS, plastic } from "./materials";
 import { canvas, draw7seg, meterFaceTexture, moduleTexture, toTexture, trainerPanelTexture } from "./draw/textures";
 import { anchorWorld, mm, surfaces, useUi } from "./registry";
 import { ringGeometry } from "./draw/shapes";
@@ -24,6 +25,10 @@ export const SLOPE = Math.atan((BODY.hBack - BODY.hFront) / BODY.d);
 const RIM = 0.013; // rim width around the panel (m)
 
 const P = (u: number, v: number): [number, number] => [mm(u - TRAINER_W / 2), mm(v - TRAINER_H / 2)];
+const JACK_SPOTS = TRAINER_JACKS.map((j) => {
+  const [x, z] = P(j.x, j.y);
+  return { x, z, style: j.style ?? "black" };
+});
 
 function useBodyGeometry() {
   return useMemo(() => {
@@ -658,6 +663,7 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
               const [x, z] = P(j.x, j.y);
               return <BananaJack key={j.id} gid={`tr:${j.id}`} x={x} z={z} style={j.style ?? "black"} label={j.label ?? j.id} />;
             })}
+            <JackVisuals jacks={JACK_SPOTS} />
             {TRAINER_KNOBS.map((k) => {
               const [x, z] = P(k.x, k.y);
               return <Knob key={k.id} id={k.id} x={x} z={z} r={k.r} detents={k.detents} bare={k.bare} />;
@@ -666,7 +672,9 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
             {TRAINER_METERS.map((m) => (
               <AnalogMeter key={m.id} m={m} />
             ))}
-            <PanelScrews />
+            <MergeStatic>
+              <PanelScrews />
+            </MergeStatic>
             <group position={[mx, 0.017 * ms, mz]} scale={[ms, ms, ms]}>
               <ModulePlate key={mod.id} mod={mod} />
             </group>
@@ -679,44 +687,83 @@ export function Trainer({ position = [0, 0, 0] as [number, number, number], rota
   );
 }
 
-/** cheaper non-interactive dressing for the other benches */
+/** shared instanced geometry for the far benches' decor */
+const decorGeo = {
+  jack: new THREE.CylinderGeometry(0.0046, 0.005, 0.006, 10),
+  knob: new THREE.CylinderGeometry(0.9, 1.1, 0.015, 20),
+  cap: new THREE.CylinderGeometry(0.78, 0.78, 0.0006, 20),
+  frame: new THREE.BoxGeometry(1, 0.006, 1),
+};
+const decorMat = {
+  jack: new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.45 }),
+  cap: new THREE.MeshStandardMaterial({ color: "#e9e5da", roughness: 0.4 }),
+};
+
+/** cheaper non-interactive dressing for the other benches: a handful of draw calls per trainer */
 function StaticDecor() {
   const tex = moduleTexture(getModule("kl23001"));
   const [mx, mz] = P(MODULE_SLOT.x + MODULE_SLOT.w / 2, MODULE_SLOT.y + MODULE_SLOT.h / 2);
   const ms = Math.min(MODULE_SLOT.w / 368, MODULE_SLOT.h / 252);
+  const jacks = useRef<THREE.InstancedMesh>(null);
+  const knobs = useRef<THREE.InstancedMesh>(null);
+  const caps = useRef<THREE.InstancedMesh>(null);
+  const frames = useRef<THREE.InstancedMesh>(null);
+  const capped = TRAINER_KNOBS.filter((k) => !k.bare);
+  useLayoutEffect(() => {
+    const o = new THREE.Object3D();
+    const col = new THREE.Color();
+    const J = jacks.current,
+      K = knobs.current,
+      C = caps.current,
+      F = frames.current;
+    if (!J || !K || !C || !F) return;
+    TRAINER_JACKS.forEach((j, i) => {
+      const [x, z] = P(j.x, j.y);
+      const small = j.style === "brass";
+      o.position.set(x, 0.003, z);
+      o.scale.set(small ? 0.68 : 1, 1, small ? 0.68 : 1);
+      o.updateMatrix();
+      J.setMatrixAt(i, o.matrix);
+      J.setColorAt(i, col.set(small ? "#1b1a18" : (PLASTIC_COLORS[j.style ?? "black"] ?? "#151515")));
+    });
+    TRAINER_KNOBS.forEach((k, i) => {
+      const [x, z] = P(k.x, k.y);
+      o.position.set(x, 0.0075, z);
+      o.scale.set(mm(k.r), 1, mm(k.r));
+      o.updateMatrix();
+      K.setMatrixAt(i, o.matrix);
+    });
+    capped.forEach((k, i) => {
+      const [x, z] = P(k.x, k.y);
+      o.position.set(x, 0.0152, z);
+      o.scale.set(mm(k.r), 1, mm(k.r));
+      o.updateMatrix();
+      C.setMatrixAt(i, o.matrix);
+    });
+    TRAINER_METERS.forEach((m, i) => {
+      const [x, z] = P(m.x + m.w / 2, m.y + m.h / 2);
+      o.position.set(x, 0.003, z);
+      o.scale.set(mm(m.w + 7), 1, mm(m.h + 7));
+      o.updateMatrix();
+      F.setMatrixAt(i, o.matrix);
+    });
+    for (const m of [J, K, C, F]) {
+      m.instanceMatrix.needsUpdate = true;
+      m.computeBoundingSphere();
+    }
+    if (J.instanceColor) J.instanceColor.needsUpdate = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <>
-      {TRAINER_KNOBS.map((k) => {
-        const [x, z] = P(k.x, k.y);
-        return (
-          <group key={k.id} position={[x, 0, z]}>
-            <mesh position={[0, 0.0075, 0]} material={MAT.blackPlastic()}>
-              <cylinderGeometry args={[mm(k.r * 0.9), mm(k.r * 1.1), 0.015, 20]} />
-            </mesh>
-            {!k.bare && (
-              <mesh position={[0, 0.0152, 0]}>
-                <cylinderGeometry args={[mm(k.r * 0.78), mm(k.r * 0.78), 0.0006, 20]} />
-                <meshStandardMaterial color="#e9e5da" />
-              </mesh>
-            )}
-          </group>
-        );
-      })}
-      {TRAINER_JACKS.map((j) => {
-        const [x, z] = P(j.x, j.y);
-        return (
-          <mesh key={j.id} position={[x, 0.003, z]} material={plastic(j.style === "brass" ? "#1b1a18" : j.style ?? "black")}>
-            <cylinderGeometry args={[j.style === "brass" ? 0.003 : 0.0046, 0.005, 0.006, 10]} />
-          </mesh>
-        );
-      })}
+      <instancedMesh ref={jacks} args={[decorGeo.jack, decorMat.jack, TRAINER_JACKS.length]} />
+      <instancedMesh ref={knobs} args={[decorGeo.knob, MAT.blackPlastic(), TRAINER_KNOBS.length]} />
+      <instancedMesh ref={caps} args={[decorGeo.cap, decorMat.cap, capped.length]} />
+      <instancedMesh ref={frames} args={[decorGeo.frame, MAT.darkGrey(), TRAINER_METERS.length]} />
       {TRAINER_METERS.map((m) => {
         const [x, z] = P(m.x + m.w / 2, m.y + m.h / 2);
         return (
           <group key={m.id} position={[x, 0, z]}>
-            <mesh position={[0, 0.003, 0]} material={MAT.darkGrey()}>
-              <boxGeometry args={[mm(m.w + 7), 0.006, mm(m.h + 7)]} />
-            </mesh>
             <mesh position={[0, 0.0062, 0]} rotation={[-Math.PI / 2, 0, 0]}>
               <planeGeometry args={[mm(m.w), mm(m.h)]} />
               <meshStandardMaterial map={meterFaceTexture(m.full, m.unit, m.kind.startsWith("ac"))} />

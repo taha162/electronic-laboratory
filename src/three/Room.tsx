@@ -7,6 +7,7 @@ import { MAT, plastic } from "./materials";
 import { blindsTexture, clockFaceTexture, deskTexture, floorTexture, manualTexture, noticeTexture, outdoorTexture, wallTexture, waveformPaperTexture } from "./draw/textures";
 import { fabricNormal, laminateMaps, plasterNormal, terrazzoMaps } from "./draw/pbr";
 import { useFrame } from "@react-three/fiber";
+import { MergeStatic } from "./MergeStatic";
 import { surfaces } from "./registry";
 import { Trainer } from "./Trainer";
 import { DESK_Y } from "./Cables";
@@ -370,6 +371,13 @@ function Stool({ position }: { position: [number, number, number] }) {
 /* ---------------------------------------------------------------- */
 /* desk props from the photographs                                   */
 /* ---------------------------------------------------------------- */
+const cordMats = new Map<string, THREE.MeshStandardMaterial>();
+function cordMat(color: string) {
+  let m = cordMats.get(color);
+  if (!m) cordMats.set(color, (m = new THREE.MeshStandardMaterial({ color, roughness: 0.45 })));
+  return m;
+}
+
 function WireBox() {
   const wires = useMemo(() => {
     const cols = ["#c8161a", "#151515", "#e8c414", "#1d4fd0", "#178a3c", "#e9e9e6", "#9fc21c", "#c8161a", "#151515"];
@@ -400,9 +408,8 @@ function WireBox() {
         </mesh>
       ))}
       {wires.map((w, i) => (
-        <mesh key={i} castShadow>
+        <mesh key={i} castShadow material={cordMat(w.color)}>
           <tubeGeometry args={[w.curve, 40, 0.0016, 6, false]} />
-          <meshStandardMaterial color={w.color} roughness={0.45} />
         </mesh>
       ))}
     </group>
@@ -490,7 +497,7 @@ function WallClock() {
     if (sc.current) sc.current.rotation.z = -(Math.floor(s) / 60) * Math.PI * 2;
   });
   return (
-    <group position={[ROOM.x0 + 0.02, 2.35, 2.95]} rotation={[0, Math.PI / 2, 0]}>
+    <group position={[ROOM.x0 + 0.02, 2.35, 2.95]} rotation={[0, Math.PI / 2, 0]} userData={{ noMerge: true }}>
       <mesh rotation={[Math.PI / 2, 0, 0]} material={MAT.blackPlastic()}>
         <cylinderGeometry args={[0.17, 0.17, 0.035, 48]} />
       </mesh>
@@ -524,7 +531,7 @@ function WallClock() {
 /* ---------------------------------------------------------------- */
 export function Room() {
   return (
-    <group>
+    <MergeStatic>
       <Walls />
       <WindowAndBlinds />
       <PowerStrip />
@@ -548,7 +555,7 @@ export function Room() {
           <Stool position={[x, 0, 3.1]} />
         </group>
       ))}
-    </group>
+    </MergeStatic>
   );
 }
 
